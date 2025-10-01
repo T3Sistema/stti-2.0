@@ -1,10 +1,9 @@
-import React, { useState, useRef, useEffect, FormEvent, useMemo } from 'react';
+import React, { useState, useRef, useEffect, FormEvent } from 'react';
 import { TeamMember } from '../types';
 import { ChatIcon } from './icons/ChatIcon';
 import { SendIcon } from './icons/SendIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { useData } from '../hooks/useMockData';
-import { GoogleGenAI, type Chat } from "@google/genai";
 import { TriadLogo } from './icons/TriadLogo';
 
 
@@ -24,7 +23,6 @@ const MonitorChatWidget: React.FC<MonitorChatWidgetProps> = ({ user }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
-    const [chat, setChat] = useState<Chat | null>(null);
     const { monitorSettings, companies, prospectaiLeads, hunterLeads, vehicles, monitorChatHistory, addMonitorChatMessage } = useData();
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -35,7 +33,7 @@ const MonitorChatWidget: React.FC<MonitorChatWidgetProps> = ({ user }) => {
             .map(msg => ({
                 id: msg.id,
                 text: msg.message,
-                sender: msg.sender,
+                sender: msg.sender as 'user' | 'monitor',
                 timestamp: msg.created_at,
             }));
         
@@ -52,25 +50,6 @@ const MonitorChatWidget: React.FC<MonitorChatWidgetProps> = ({ user }) => {
     }, [monitorChatHistory, user.id, user.name]);
 
 
-    useEffect(() => {
-        if (isOpen && monitorSettings?.prompt && process.env.API_KEY) {
-            try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const newChat = ai.chats.create({
-                    model: 'gemini-2.5-flash',
-                    config: {
-                        systemInstruction: monitorSettings.prompt,
-                    },
-                });
-                setChat(newChat);
-            } catch (error) {
-                console.error("Error initializing Gemini chat:", error);
-                setMessages(prev => [...prev, {id: Date.now(), text: "Erro ao inicializar o assistente. A API Key pode estar inválida ou faltando.", sender: 'monitor', timestamp: new Date().toISOString()}]);
-            }
-        }
-    }, [isOpen, monitorSettings]);
-
-
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -80,13 +59,9 @@ const MonitorChatWidget: React.FC<MonitorChatWidgetProps> = ({ user }) => {
     const handleSendMessage = async (e: FormEvent) => {
         e.preventDefault();
         if (inputValue.trim() === '' || isTyping) return;
-
-        if (!chat) {
-            if (!monitorSettings?.prompt) {
-                alert("O prompt do Monitor ainda não foi configurado pelo administrador.");
-            } else {
-                 alert("Erro de configuração. Verifique se a Chave de API está corretamente configurada no ambiente.");
-            }
+        
+        if (!monitorSettings?.api_key) {
+            alert("Erro de configuração. A Chave de API da OpenAI não foi encontrada nas configurações do Monitor.");
             return;
         }
 
@@ -102,7 +77,6 @@ const MonitorChatWidget: React.FC<MonitorChatWidgetProps> = ({ user }) => {
         setInputValue('');
         setIsTyping(true);
 
-        // Salva a mensagem do usuário no banco de dados
         await addMonitorChatMessage({ user_id: user.id, sender: 'user', message: text });
         
         const activeCompany = companies.find(c => c.id === user.companyId);
@@ -153,41 +127,60 @@ ESTOQUE DE VEÍCULOS:
 - Modelos: ${myVehicles.map(v => `${v.brand} ${v.model}`).join(', ') || 'Nenhum'}
 --- FIM DO CONTEXTO ---
 
-Com base no contexto acima, responda a pergunta do usuário.
-
 PERGUNTA DO USUÁRIO:
 ${text}
 `;
+        
+        const historyForAPI = messages
+          .filter(msg => msg.id !== 1) // Remove a mensagem inicial de boas-vindas
+          .map(msg => ({
+              role: msg.sender === 'monitor' ? 'assistant' : 'user',
+              content: msg.text,
+          }));
+
+        const apiMessages = [
+            { role: 'system', content: monitorSettings.prompt },
+            ...historyForAPI,
+            { role: 'user', content: contexto }
+        ];
 
         try {
-            const stream = await chat.sendMessageStream({ message: contexto });
-            
-            let fullResponseText = '';
-            let firstChunk = true;
-            const monitorMessageId = Date.now() + 1;
-            const monitorMessageTimestamp = new Date().toISOString();
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${monitorSettings.api_key}`,
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: apiMessages,
+                }),
+            });
 
-            for await (const chunk of stream) {
-                const chunkText = chunk.text;
-                if (chunkText) {
-                    fullResponseText += chunkText;
-                    if (firstChunk) {
-                        setIsTyping(false);
-                        setMessages(prev => [...prev, { id: monitorMessageId, text: chunkText, sender: 'monitor', timestamp: monitorMessageTimestamp }]);
-                        firstChunk = false;
-                    } else {
-                        setMessages(prev => prev.map(m => m.id === monitorMessageId ? { ...m, text: m.text + chunkText } : m));
-                    }
-                }
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'Erro na API da OpenAI. Verifique sua chave.');
             }
 
-            if (fullResponseText) {
-                await addMonitorChatMessage({ user_id: user.id, sender: 'monitor', message: fullResponseText });
+            const data = await response.json();
+            const monitorResponseText = data.choices[0]?.message?.content?.trim();
+
+            if (monitorResponseText) {
+                const monitorMessage: Message = {
+                    id: data.id,
+                    text: monitorResponseText,
+                    sender: 'monitor',
+                    timestamp: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, monitorMessage]);
+                await addMonitorChatMessage({ user_id: user.id, sender: 'monitor', message: monitorResponseText });
+            } else {
+                throw new Error("Recebi uma resposta vazia da IA.");
             }
 
-        } catch (error) {
-            console.error("Error sending message to Gemini:", error);
-            const errorMessage = "Desculpe, ocorreu um erro ao processar sua solicitação.";
+        } catch (error: any) {
+            console.error("Error sending message to OpenAI:", error);
+            const errorMessage = `Desculpe, ocorreu um erro: ${error.message}`;
             setMessages(prev => [...prev, {id: Date.now(), text: errorMessage, sender: 'monitor', timestamp: new Date().toISOString()}]);
             await addMonitorChatMessage({ user_id: user.id, sender: 'monitor', message: errorMessage });
         } finally {
