@@ -4,10 +4,16 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
+  maxWidthClass?: string;
+  fullScreen?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, maxWidthClass = 'max-w-lg', fullScreen = false }) => {
   if (!isOpen) return null;
+
+  const modalClasses = fullScreen
+    ? 'relative w-screen h-screen p-6 bg-dark-card animate-modal-fade-in'
+    : `relative w-full ${maxWidthClass} p-6 mx-4 bg-dark-card border border-dark-border rounded-2xl shadow-2xl shadow-black/30 animate-modal-fade-in max-h-[90vh] overflow-y-auto`;
 
   return (
     <div
@@ -17,12 +23,12 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
       role="dialog"
     >
       <div
-        className="relative w-full max-w-lg p-6 mx-4 bg-dark-card border border-dark-border rounded-2xl shadow-2xl shadow-black/30 animate-modal-fade-in max-h-[90vh] overflow-y-auto"
+        className={modalClasses}
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-dark-secondary hover:text-dark-text transition-colors"
+          className="absolute top-4 right-4 text-dark-secondary hover:text-dark-text transition-colors z-10"
           aria-label="Fechar modal"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

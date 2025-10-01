@@ -479,15 +479,17 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                 </div>
             </Modal>
 
-            <Modal isOpen={isDatabaseModalOpen} onClose={() => setDatabaseModalOpen(false)}>
-                <div className="w-[90vw] max-w-4xl p-4">
-                    <h2 className="text-2xl font-bold text-center mb-2">Base de Dados</h2>
-                    <p className="text-center text-dark-secondary mb-6">
-                        Você possui <strong className="text-dark-text">{unassignedLeads.length}</strong> leads não atribuídos.
-                    </p>
+            <Modal isOpen={isDatabaseModalOpen} onClose={() => setDatabaseModalOpen(false)} fullScreen>
+                <div className="h-full flex flex-col">
+                    <div className="flex-shrink-0">
+                        <h2 className="text-2xl font-bold text-center mb-2">Base de Dados</h2>
+                        <p className="text-center text-dark-secondary mb-6">
+                            Você possui <strong className="text-dark-text">{unassignedLeads.length}</strong> leads não atribuídos.
+                        </p>
+                    </div>
                     {unassignedLeads.length > 0 ? (
                         <>
-                            <div className="max-h-[60vh] overflow-y-auto pr-2">
+                            <div className="flex-grow overflow-y-auto pr-2">
                                 <table className="w-full text-left text-sm">
                                     <thead className="sticky top-0 bg-dark-card/80 backdrop-blur-sm">
                                         <tr>
@@ -520,7 +522,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 mt-4 border-t border-dark-border">
+                            <div className="flex-shrink-0 flex flex-col sm:flex-row justify-end gap-3 pt-4 mt-4 border-t border-dark-border">
                                 <button onClick={() => setDatabaseModalOpen(false)} className="btn-secondary">Fechar</button>
                                 <button onClick={handleSaveDatabaseDistribution} disabled={isSavingDistribution} className="btn-primary">
                                     {isSavingDistribution ? 'Salvando...' : 'Salvar Distribuição'}
@@ -528,15 +530,17 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                             </div>
                         </>
                     ) : (
-                        <p className="text-center text-dark-secondary py-8">Todos os leads da sua base já foram distribuídos.</p>
+                         <div className="flex-grow flex items-center justify-center">
+                            <p className="text-center text-dark-secondary py-8">Todos os leads da sua base já foram distribuídos.</p>
+                        </div>
                     )}
                 </div>
             </Modal>
 
-            <Modal isOpen={isUploadModalOpen} onClose={handleCloseUploadModal}>
-                <div className="w-[90vw] max-w-4xl">
+            <Modal isOpen={isUploadModalOpen} onClose={handleCloseUploadModal} fullScreen>
+                <div className="h-full flex flex-col">
                 {uploadStep === 1 && (
-                     <div className="p-4">
+                     <div className="p-4 flex-grow flex flex-col justify-center max-w-2xl mx-auto w-full">
                         <h2 className="text-2xl font-bold text-center mb-4">Subir Base de Dados</h2>
                         <p className="text-center text-dark-secondary mb-6">Faça o upload de um arquivo .csv, .xls ou .xlsx com as colunas: `nome`, `telefone`.</p>
                         <button onClick={handleDownloadTemplate} className="w-full mb-4 flex items-center justify-center gap-2 text-sm font-semibold py-2 px-3 rounded-lg bg-dark-border/50 hover:bg-dark-border transition-colors">
@@ -554,31 +558,33 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                     </div>
                 )}
                 {uploadStep === 2 && (
-                    <div className="p-4">
-                        <h2 className="text-2xl font-bold text-center mb-2">Distribuição de Leads</h2>
-                        <p className="text-center text-dark-secondary mb-6">
-                            Você carregou <strong className="text-dark-text">{parsedLeads.length}</strong> leads. Atribua-os agora ou confirme para salvá-los e distribuir mais tarde.
-                        </p>
-                        
-                        <div className="bg-dark-background p-3 rounded-lg border border-dark-border mb-4">
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                                {activeHunters.map(sp => (
-                                    <div key={sp.id} className="flex items-center gap-2 text-sm">
-                                        <img src={sp.avatarUrl} alt={sp.name} className="w-6 h-6 rounded-full" />
-                                        <span>{sp.name.split(' ')[0]}:</span>
-                                        <span className="font-bold text-dark-primary">{assignedCounts[sp.id] || 0}</span>
-                                    </div>
-                                ))}
+                    <div className="flex-grow flex flex-col">
+                        <div className="flex-shrink-0">
+                            <h2 className="text-2xl font-bold text-center mb-2">Distribuição de Leads</h2>
+                            <p className="text-center text-dark-secondary mb-6">
+                                Você carregou <strong className="text-dark-text">{parsedLeads.length}</strong> leads. Atribua-os agora ou confirme para salvá-los e distribuir mais tarde.
+                            </p>
+                            
+                            <div className="bg-dark-background p-3 rounded-lg border border-dark-border mb-4">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                    {activeHunters.map(sp => (
+                                        <div key={sp.id} className="flex items-center gap-2 text-sm">
+                                            <img src={sp.avatarUrl} alt={sp.name} className="w-6 h-6 rounded-full" />
+                                            <span>{sp.name.split(' ')[0]}:</span>
+                                            <span className="font-bold text-dark-primary">{assignedCounts[sp.id] || 0}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                 <p className="text-center font-bold text-sm mt-2 pt-2 border-t border-dark-border">Total Atribuído: {totalDistributed} / {parsedLeads.length}</p>
                             </div>
-                             <p className="text-center font-bold text-sm mt-2 pt-2 border-t border-dark-border">Total Atribuído: {totalDistributed} / {parsedLeads.length}</p>
+
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <button onClick={handleDistributeRemainingEvenly} className="btn-secondary text-xs">Distribuir Restantes Igualmente</button>
+                                <button onClick={() => setAssignments({})} className="btn-secondary text-xs">Limpar Atribuições</button>
+                            </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            <button onClick={handleDistributeRemainingEvenly} className="btn-secondary text-xs">Distribuir Restantes Igualmente</button>
-                            <button onClick={() => setAssignments({})} className="btn-secondary text-xs">Limpar Atribuições</button>
-                        </div>
-
-                        <div className="max-h-[40vh] overflow-y-auto pr-2">
+                        <div className="flex-grow overflow-y-auto pr-2">
                              <table className="w-full text-left text-sm">
                                 <thead className="sticky top-0 bg-dark-card/80 backdrop-blur-sm">
                                     <tr>
@@ -612,7 +618,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                             </table>
                         </div>
                         
-                        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 mt-4 border-t border-dark-border">
+                        <div className="flex-shrink-0 flex flex-col sm:flex-row justify-end gap-3 pt-4 mt-4 border-t border-dark-border">
                              <button onClick={handleCloseUploadModal} className="btn-secondary">Cancelar</button>
                              <button onClick={handleConfirmDistribution} disabled={isUploading} className="btn-primary">
                                 {isUploading ? 'Carregando...' : `Confirmar e Carregar ${parsedLeads.length} Leads`}
