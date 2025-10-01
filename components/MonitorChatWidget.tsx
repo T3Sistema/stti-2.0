@@ -4,7 +4,6 @@ import { ChatIcon } from './icons/ChatIcon';
 import { SendIcon } from './icons/SendIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { useData } from '../hooks/useMockData';
-import { TriadLogo } from './icons/TriadLogo';
 
 
 interface MonitorChatWidgetProps {
@@ -193,10 +192,10 @@ ${text}
             {/* FAB */}
             <button
                 onClick={() => setIsOpen(true)}
-                className={`fixed bottom-6 right-6 w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-background focus:ring-dark-primary ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
+                className={`fixed bottom-6 right-6 w-16 h-16 rounded-full bg-dark-primary shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-background focus:ring-dark-primary ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
                 aria-label="Abrir chat com o Monitor"
             >
-                <TriadLogo className="w-16 h-16" />
+                <ChatIcon className="w-8 h-8 text-dark-background" />
             </button>
 
             {/* Chat Window */}
