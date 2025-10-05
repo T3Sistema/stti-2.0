@@ -213,7 +213,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
         for (const lead of filteredLeads) {
             if (lead.details?.reassigned_from === user.id) {
                 const remanejadoStage = companyPipeline.find(s => s.name === 'Remanejados');
-                // FIX: Corrected typo from `stage.name` to `remanejadoStage.name` and cast to any to resolve index signature error.
+                // FIX: Corrected a typo from `stage.name` to `remanejadoStage.name` to use the correct variable in scope, and cast to `any` to resolve index signature error.
                 if (remanejadoStage && stageCounts.hasOwnProperty(remanejadoStage.name)) {
                     (stageCounts as any)[remanejadoStage.name]++;
                 }
@@ -465,7 +465,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                  <Card className="p-4">
                      <h2 className="text-xl font-bold text-dark-text mb-4">Pipeline de Leads</h2>
-                     <ReactECharts option={{ ...chartOptions.base, ...chartOptions.bar }} style={{ height: '400px' }} />
+                     <ReactECharts option={{ ...chartOptions.base, ...chartOptions.pipeline }} style={{ height: '400px' }} />
                  </Card>
                  <Card className="p-4">
                      <h2 className="text-xl font-bold text-dark-text mb-4">Feedbacks Recentes</h2>

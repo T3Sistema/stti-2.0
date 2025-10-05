@@ -78,11 +78,11 @@ const HunterActionModal: React.FC<{
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            Array.from(e.target.files).forEach(file => {
+            for (const file of Array.from(e.target.files)) {
                 const reader = new FileReader();
                 reader.onloadend = () => setFeedbackImages(prev => [...prev, reader.result as string]);
                 reader.readAsDataURL(file);
-            });
+            }
         }
     };
 
@@ -710,7 +710,8 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                     isOverdueFilterActive={isOverdueFilterActive}
                     onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                     onAdvancedFilterChange={setFilters}
-                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc, val: string[]) => acc + (Array.isArray(val) ? val.length : 0), 0)}
+                    // FIX: Use Array.isArray(val) as a type guard before accessing `val.length`. This resolves a TypeScript error where `val` was inferred as 'unknown' from `Object.values(filters)`, preventing safe access to array properties.
+                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                     selectedSalespersonId={selectedSalespersonId}
                     onSalespersonSelect={setSelectedSalespersonId}
                     areFiltersDisabled={stockView === 'assigned'}

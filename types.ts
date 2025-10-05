@@ -62,7 +62,13 @@ export interface SalespersonProspectAISettings {
       auto_reassign_enabled: boolean;
       reassignment_mode: 'random' | 'specific';
       reassignment_target_id: string | null;
-    }
+    };
+    first_feedback?: {
+      minutes: number;
+      auto_reassign_enabled: boolean;
+      reassignment_mode: 'random' | 'specific';
+      reassignment_target_id: string | null;
+    };
   };
   hunter_goals?: {
     type: 'daily' | 'weekly' | 'monthly';

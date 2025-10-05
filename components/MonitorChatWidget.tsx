@@ -120,10 +120,16 @@ LEADS (MODO HUNTER):
 - O modo Hunter está INATIVO para este usuário.
 `;
         }
-        contexto += `
+        
+        if (activeCompany?.enabledFeatures?.includes('estoque_inteligente')) {
+            contexto += `
 ESTOQUE DE VEÍCULOS:
 - Total de veículos atribuídos a este vendedor: ${myVehicles.length}
 - Modelos: ${myVehicles.map(v => `${v.brand} ${v.model}`).join(', ') || 'Nenhum'}
+`;
+        }
+
+        contexto += `
 --- FIM DO CONTEXTO ---
 
 PERGUNTA DO USUÁRIO:

@@ -15,6 +15,12 @@ interface SalespersonSettings {
       reassignment_mode: "random" | "specific";
       reassignment_target_id: string | null;
     };
+    first_feedback?: {
+      minutes: number;
+      auto_reassign_enabled: boolean;
+      reassignment_mode: "random" | "specific";
+      reassignment_target_id: string | null;
+    };
   };
 }
 
@@ -43,90 +49,90 @@ serve(async (req) => {
     
     if(salespeopleError) throw salespeopleError;
 
-    // 3. Filtra apenas os vendedores que têm a função de remanejamento habilitada.
-    const enabledSalespeople = salespeople.filter(sp =>
-        sp.prospect_ai_settings?.deadlines?.initial_contact?.auto_reassign_enabled === true
-    );
-
     let totalLeadsReassigned = 0;
 
-    // 4. Itera sobre cada vendedor habilitado para verificar seus leads.
-    for (const salesperson of enabledSalespeople) {
+    // 3. Itera sobre cada vendedor para verificar seus leads.
+    for (const salesperson of salespeople) {
       const settings: SalespersonSettings = salesperson.prospect_ai_settings;
-      const deadlineMinutes = settings.deadlines.initial_contact.minutes;
-      
+      if (!settings || !settings.deadlines) continue;
+
       const companyStages = companyStageMap.get(salesperson.company_id);
-      // FIX: Added Array.isArray check to ensure companyStages is an array and to satisfy TypeScript.
       if (!Array.isArray(companyStages)) continue;
-
-      const novosLeadsStage = companyStages.find(
-        (stage: any) => stage.name === "Novos Leads"
-      );
-
-      if (!novosLeadsStage) continue;
-
-      const timeLimit = new Date(Date.now() - deadlineMinutes * 60 * 1000).toISOString();
-
-      // 5. Busca os leads que pertencem a ESTE vendedor e que ultrapassaram o prazo.
-      const { data: overdueLeads, error: leadsError } = await supabaseAdmin
-        .from("prospectai")
-        .select("id, salesperson_id, details")
-        .eq("salesperson_id", salesperson.id) // Apenas leads deste vendedor
-        .eq("stage_id", novosLeadsStage.id)
-        .lt("created_at", timeLimit);
       
-      if (leadsError) {
-        console.error(`Error fetching overdue leads for salesperson ${salesperson.id}:`, leadsError);
-        continue;
-      }
-      
-      if (overdueLeads.length === 0) continue;
+      const allOtherSalespeopleInCompany = salespeople.filter(sp => sp.company_id === salesperson.company_id && sp.id !== salesperson.id);
 
-      // 6. Busca todos os OUTROS vendedores da mesma empresa para o remanejamento.
-      const { data: allOtherSalespeople, error: otherSalespeopleError } = await supabaseAdmin
-        .from("team_members")
-        .select("id")
-        .eq("company_id", salesperson.company_id)
-        .eq("role", "Vendedor")
-        .neq("id", salesperson.id); // Exclui o vendedor atual
+      // --- LÓGICA 1: VERIFICAR PRAZO DO PRIMEIRO CONTATO (LEADS NOVOS) ---
+      const initialContactSettings = settings.deadlines.initial_contact;
+      if (initialContactSettings?.auto_reassign_enabled) {
+        const novosLeadsStage = companyStages.find((stage: any) => stage.name === "Novos Leads");
+        if (novosLeadsStage) {
+            const timeLimit = new Date(Date.now() - initialContactSettings.minutes * 60 * 1000).toISOString();
+            const { data: overdueLeads, error: leadsError } = await supabaseAdmin
+                .from("prospectai")
+                .select("id, salesperson_id, details")
+                .eq("salesperson_id", salesperson.id)
+                .eq("stage_id", novosLeadsStage.id)
+                .lt("created_at", timeLimit);
+            
+            if (leadsError) {
+                console.error(`Error fetching overdue initial leads for salesperson ${salesperson.id}:`, leadsError);
+            } else if (overdueLeads.length > 0 && allOtherSalespeopleInCompany.length > 0) {
+                 for (const lead of overdueLeads) {
+                    let newSalespersonId: string | null = null;
+                    if (initialContactSettings.reassignment_mode === "specific") {
+                        newSalespersonId = initialContactSettings.reassignment_target_id;
+                    } else { // "random"
+                        const randomIndex = Math.floor(Math.random() * allOtherSalespeopleInCompany.length);
+                        newSalespersonId = allOtherSalespeopleInCompany[randomIndex].id;
+                    }
 
-      if (otherSalespeopleError || !allOtherSalespeople || allOtherSalespeople.length === 0) {
-        console.error(`No other salespeople to reassign to for company ${salesperson.company_id}`);
-        continue;
-      }
+                    if (!newSalespersonId || newSalespersonId === lead.salesperson_id) continue;
 
-      // 7. Itera sobre cada lead atrasado para executar o remanejamento.
-      for (const lead of overdueLeads) {
-        let newSalespersonId: string | null = null;
-        
-        if (settings.deadlines.initial_contact.reassignment_mode === "specific") {
-            newSalespersonId = settings.deadlines.initial_contact.reassignment_target_id;
-        } else { // "random"
-            const randomIndex = Math.floor(Math.random() * allOtherSalespeople.length);
-            newSalespersonId = allOtherSalespeople[randomIndex].id;
+                    const newDetails = { ...(lead.details || {}), reassigned_by_system: true, reassigned_from: lead.salesperson_id, reassigned_to: newSalespersonId, reassigned_at: new Date().toISOString(), reason: "Initial contact deadline missed." };
+                    const { error: updateError } = await supabaseAdmin.from("prospectai").update({ salesperson_id: newSalespersonId, details: newDetails }).eq("id", lead.id);
+
+                    if (updateError) console.error(`Error reassigning initial lead ${lead.id}:`, updateError);
+                    else totalLeadsReassigned++;
+                }
+            }
         }
+      }
 
-        if (!newSalespersonId || newSalespersonId === lead.salesperson_id) continue;
+      // --- LÓGICA 2: VERIFICAR PRAZO DO PRIMEIRO FEEDBACK (EM "PRIMEIRA TENTATIVA") ---
+      const firstFeedbackSettings = settings.deadlines.first_feedback;
+      if (firstFeedbackSettings?.auto_reassign_enabled) {
+        const primeiraTentativaStage = companyStages.find((stage: any) => stage.name === "Primeira Tentativa");
+        if (primeiraTentativaStage) {
+            const timeLimit = new Date(Date.now() - firstFeedbackSettings.minutes * 60 * 1000).toISOString();
+            const { data: overdueFeedbackLeads, error: feedbackLeadsError } = await supabaseAdmin
+                .from("prospectai")
+                .select("id, salesperson_id, details")
+                .eq("salesperson_id", salesperson.id)
+                .eq("stage_id", primeiraTentativaStage.id)
+                .lt("prospected_at", timeLimit) // Baseado em quando a prospecção começou
+                .or("feedback.is.null,feedback.eq.[]"); // Sem nenhum feedback ainda
 
-        const newDetails = {
-            ...(lead.details || {}),
-            reassigned_by_system: true,
-            reassigned_from: lead.salesperson_id,
-            reassigned_to: newSalespersonId,
-            reassigned_at: new Date().toISOString(),
-            reason: "Lead not prospected within the time limit.",
-        };
+            if (feedbackLeadsError) {
+                console.error(`Error fetching overdue feedback leads for salesperson ${salesperson.id}:`, feedbackLeadsError);
+            } else if (overdueFeedbackLeads.length > 0 && allOtherSalespeopleInCompany.length > 0) {
+                for (const lead of overdueFeedbackLeads) {
+                    let newSalespersonId: string | null = null;
+                    if (firstFeedbackSettings.reassignment_mode === "specific") {
+                        newSalespersonId = firstFeedbackSettings.reassignment_target_id;
+                    } else { // "random"
+                        const randomIndex = Math.floor(Math.random() * allOtherSalespeopleInCompany.length);
+                        newSalespersonId = allOtherSalespeopleInCompany[randomIndex].id;
+                    }
 
-        // 8. Atualiza o lead no banco de dados.
-        const { error: updateError } = await supabaseAdmin
-          .from("prospectai")
-          .update({ salesperson_id: newSalespersonId, details: newDetails })
-          .eq("id", lead.id);
+                    if (!newSalespersonId || newSalespersonId === lead.salesperson_id) continue;
 
-        if (updateError) {
-            console.error(`Error reassigning lead ${lead.id}:`, updateError);
-        } else {
-            totalLeadsReassigned++;
+                    const newDetails = { ...(lead.details || {}), reassigned_by_system: true, reassigned_from: lead.salesperson_id, reassigned_to: newSalespersonId, reassigned_at: new Date().toISOString(), reason: "First feedback deadline missed." };
+                    const { error: updateError } = await supabaseAdmin.from("prospectai").update({ salesperson_id: newSalespersonId, details: newDetails }).eq("id", lead.id);
+
+                    if (updateError) console.error(`Error reassigning feedback lead ${lead.id}:`, updateError);
+                    else totalLeadsReassigned++;
+                }
+            }
         }
       }
     }

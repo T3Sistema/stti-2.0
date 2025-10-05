@@ -555,8 +555,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 isOverdueFilterActive={isOverdueFilterActive}
                 onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                 onAdvancedFilterChange={setFilters}
-                // FIX: Use Array.isArray to safely check for val.length, resolving the TypeScript error where val was inferred as 'unknown'.
-                activeAdvancedFiltersCount={Object.values(filters).reduce((acc, val: string[]) => acc + (Array.isArray(val) ? val.length : 0), 0)}
+                // FIX: Use Array.isArray(val) as a type guard before accessing `val.length`. This resolves a TypeScript error where `val` was inferred as 'unknown' from `Object.values(filters)`, preventing safe access to array properties.
+                activeAdvancedFiltersCount={Object.values(filters).reduce((acc, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                 selectedSalespersonId={selectedSalespersonId}
                 onSalespersonSelect={setSelectedSalespersonId}
                 areFiltersDisabled={isPriorityFilterActive || stockView === 'sold'}

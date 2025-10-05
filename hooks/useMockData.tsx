@@ -137,6 +137,12 @@ const defaultSalespersonSettings: SalespersonProspectAISettings = {
             reassignment_mode: 'random',
             reassignment_target_id: null,
         },
+        first_feedback: {
+            minutes: 240, // 4 hours
+            auto_reassign_enabled: false,
+            reassignment_mode: 'random',
+            reassignment_target_id: null,
+        }
     },
 };
 
@@ -150,7 +156,14 @@ const mapTeamMemberFromDB = (tm: any): TeamMember => ({
     avatarUrl: tm.avatar_url,
     monthlySalesGoal: tm.monthly_sales_goal,
     role: tm.role,
-    prospectAISettings: tm.prospect_ai_settings || defaultSalespersonSettings,
+    prospectAISettings: {
+        ...defaultSalespersonSettings,
+        ...(tm.prospect_ai_settings || {}),
+        deadlines: {
+            ...defaultSalespersonSettings.deadlines,
+            ...((tm.prospect_ai_settings && tm.prospect_ai_settings.deadlines) || {}),
+        },
+    },
     isHunterModeActive: tm.is_hunter_mode_active ?? false,
 });
 

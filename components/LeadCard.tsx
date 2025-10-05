@@ -159,14 +159,14 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const files = Array.from(e.target.files);
-            files.forEach(file => {
+            // FIX: Iterate directly over FileList to ensure correct typing for 'file'.
+            for (const file of e.target.files) {
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     setFeedbackImages(prev => [...prev, reader.result as string]);
                 };
                 reader.readAsDataURL(file);
-            });
+            }
         }
     };
 
