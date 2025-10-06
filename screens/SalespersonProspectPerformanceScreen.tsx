@@ -180,6 +180,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
     }, [leads, period, customRange]);
 
     const metrics = useMemo(() => calculatePerformanceMetrics(filteredLeads, companyPipeline, allSalespeople), [filteredLeads, companyPipeline, allSalespeople]);
+    const finalizedCount = metrics.totalConverted + metrics.totalNotConverted;
 
     const recentLeadsForTimeline = useMemo(() => {
         const leadMap = new Map<string, ProspectAILead>();
@@ -251,44 +252,34 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
         if (filteredLeads.length === 0) {
             return [];
         }
+        
+        const timestamps = filteredLeads.map(log => new Date(log.createdAt).getTime());
+        const minTime = Math.min(...timestamps);
+        const maxTime = Math.max(...timestamps);
+        const timeRange = maxTime - minTime;
+        
+        // Use hourly grouping for ranges up to 7 days
+        const useHourGrouping = timeRange <= 7 * 24 * 60 * 60 * 1000;
 
-        const leadsByDate = filteredLeads.reduce((acc, lead) => {
-            const date: string = new Date(lead.createdAt).toISOString().slice(0, 10);
-            acc[date] = (acc[date] || 0) + 1;
+        const logCounts = filteredLeads.reduce((acc, log) => {
+            const date = new Date(log.createdAt);
+            let key: string;
+            if (useHourGrouping) {
+                date.setMinutes(0, 0, 0); 
+                key = date.toISOString();
+            } else {
+                date.setHours(0, 0, 0, 0); 
+                key = date.toISOString();
+            }
+            
+            acc[key] = (acc[key] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
 
-        const dates = Object.keys(leadsByDate).map(d => new Date(d + 'T00:00:00'));
-        const startDate = new Date(Math.min(...dates.map(d => d.getTime())));
-        const endDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        return Object.entries(logCounts)
+            .map(([timestamp, count]): [string, number] => [new Date(timestamp).toISOString().slice(0, 10), count as number])
+            .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
 
-        const fullDateRangeData = [];
-        let currentDate = new Date(startDate);
-        
-        while (currentDate <= endDate) {
-            const dateString = currentDate.toISOString().slice(0, 10);
-            fullDateRangeData.push([
-                dateString,
-                leadsByDate[dateString] || 0
-            ]);
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-        
-        if (fullDateRangeData.length === 1) {
-            const singleDate = new Date(fullDateRangeData[0][0] + 'T00:00:00');
-            const dayBefore = new Date(singleDate);
-            dayBefore.setDate(singleDate.getDate() - 1);
-            const dayAfter = new Date(singleDate);
-            dayAfter.setDate(singleDate.getDate() + 1);
-            
-            return [
-                [dayBefore.toISOString().slice(0, 10), 0],
-                ...fullDateRangeData,
-                [dayAfter.toISOString().slice(0, 10), 0]
-            ];
-        }
-
-        return fullDateRangeData;
     }, [filteredLeads]);
 
     const chartOptions = {
@@ -304,6 +295,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 axisLabel: {
                     color: '#8A93A3',
                     interval: 0,
+                    rotate: 0,
                     fontSize: 10,
                     formatter: (value: string) => {
                         return value.replace(/ /g, '\n');
@@ -330,7 +322,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
             xAxis: { type: 'category', boundaryGap: false, data: leadsOverTimeData.map(d => d[0]), axisLine: { lineStyle: { color: '#243049' } } },
             yAxis: { type: 'value', splitLine: { lineStyle: { color: '#243049' } }, minInterval: 1 },
             series: [{
-                data: leadsOverTimeData.map(d => d[1] as number),
+                data: leadsOverTimeData.map(d => d[1]),
                 type: 'line',
                 smooth: true,
                 symbol: 'none',
@@ -379,9 +371,9 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <Kpi title="Total de Leads" value={metrics.totalLeads.toString()} />
-                <Kpi title="Taxa de Conversão" value={`${metrics.conversionRate.toFixed(1)}%`} />
-                <Kpi title="1º Contato (Média)" value={formatDuration(metrics.avgResponseTime)} />
-                <Kpi title="Atendimento (Média)" value={formatDuration(metrics.avgClosingTime)} />
+                <Kpi title="Leads Finalizados" value={finalizedCount.toString()} />
+                <Kpi title="Leads Convertidos" value={metrics.totalConverted.toString()} />
+                <Kpi title="Taxa de Sucesso (Finalizados)" value={`${metrics.conversionRate.toFixed(1)}%`} />
             </div>
 
             <div className="grid grid-cols-1 gap-6 mb-6">

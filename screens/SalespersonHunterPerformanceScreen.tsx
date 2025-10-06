@@ -111,6 +111,7 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
     }, [leads, period, customRange]);
 
     const metrics = useMemo(() => calculatePerformanceMetrics(filteredLeads, companyPipeline), [filteredLeads, companyPipeline]);
+    const finalizedCount = metrics.totalConverted + metrics.totalNotConverted;
     
     const generateHunterLeadEvents = (lead: HunterLead) => {
         const events: any[] = [];
@@ -237,6 +238,7 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
                 axisLabel: {
                     color: '#8A93A3',
                     interval: 0,
+                    rotate: 0,
                     fontSize: 10,
                     formatter: (value: string) => {
                         return value.replace(/ /g, '\n');
@@ -305,9 +307,9 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <Kpi title="Total de Leads" value={metrics.totalLeads.toString()} />
-                <Kpi title="Taxa de Conversão" value={`${metrics.conversionRate.toFixed(1)}%`} />
-                <Kpi title="1º Contato (Média)" value={formatDuration(metrics.avgResponseTime)} />
-                <Kpi title="Atendimento (Média)" value={formatDuration(metrics.avgClosingTime)} />
+                <Kpi title="Leads Finalizados" value={finalizedCount.toString()} />
+                <Kpi title="Leads Convertidos" value={metrics.totalConverted.toString()} />
+                <Kpi title="Taxa de Sucesso (Finalizados)" value={`${metrics.conversionRate.toFixed(1)}%`} />
             </div>
             
             <div className="grid grid-cols-1 gap-6 mb-6">

@@ -147,6 +147,7 @@ const SalespersonPerformanceScreen: React.FC<SalespersonPerformanceScreenProps> 
 
     const categoryRevenue = useMemo(() => {
         const data = filteredVehicles.reduce((acc, v) => {
+            // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
             acc[v.category] = (acc[v.category] || 0) + ((v.announcedPrice || 0) - (v.discount || 0));
             return acc;
         }, {} as Record<string, number>);
