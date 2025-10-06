@@ -223,16 +223,6 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
         
         return fullRangeData;
     }, [filteredLeads]);
-
-    const pieChartData = useMemo(() => {
-        const data = [
-            { name: 'Convertidos', value: metrics.totalConverted },
-            { name: 'Não Convertidos', value: metrics.totalNotConverted },
-        ];
-        const inProgress = metrics.totalLeads - metrics.totalConverted - metrics.totalNotConverted;
-        if(inProgress > 0) data.push({ name: 'Em Andamento', value: inProgress });
-        return data.filter(d => d.value > 0);
-    }, [metrics]);
     
     const chartOptions = {
         base: {
@@ -281,23 +271,6 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
                 lineStyle: { color: '#00D1FF' }
             }]
         },
-        outcomes: {
-            tooltip: { formatter: '{b}: {c} ({d}%)' },
-             legend: {
-                orient: 'vertical',
-                left: 'right',
-                top: 'center',
-                textStyle: { color: '#E0E0E0' }
-            },
-            series: [{
-                type: 'pie', radius: ['50%', '70%'], avoidLabelOverlap: false,
-                label: { show: false, position: 'center' },
-                emphasis: { label: { show: true, fontSize: 20, fontWeight: 'bold' } },
-                labelLine: { show: false },
-                data: pieChartData,
-                color: ['#22C55E', '#EF4444', '#FBBF24', '#A78BFA', '#60A5FA']
-            }]
-        }
     };
     const periodOptions: { id: Period; label: string }[] = [
         { id: 'all', label: 'Todo o Período' },
@@ -337,14 +310,21 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
                 <Kpi title="Atendimento (Média)" value={formatDuration(metrics.avgClosingTime)} />
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 gap-6 mb-6">
                  <Card className="p-4">
                      <h2 className="text-xl font-bold text-dark-text mb-4">Pipeline de Leads</h2>
                      <ReactECharts option={{ ...chartOptions.base, ...chartOptions.pipeline }} style={{ height: '400px' }} />
                  </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 <Card className="p-4">
+                     <h2 className="text-xl font-bold text-dark-text mb-4">Leads ao Longo do Tempo</h2>
+                     <ReactECharts option={{ ...chartOptions.base, ...chartOptions.leadsOverTime }} style={{ height: '300px' }} />
+                 </Card>
                  <Card className="p-4">
                      <h2 className="text-xl font-bold text-dark-text mb-4">Feedbacks Recentes</h2>
-                     <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                     <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
                         {metrics.allFeedbacks.slice(0, 10).map((fb, index) => (
                             <div 
                                 key={index}
@@ -365,17 +345,6 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
                         {metrics.allFeedbacks.length === 0 && <p className="text-center text-dark-secondary py-8">Nenhum feedback no período.</p>}
                      </div>
                  </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <Card className="p-4">
-                     <h2 className="text-xl font-bold text-dark-text mb-4">Leads ao Longo do Tempo</h2>
-                     <ReactECharts option={{ ...chartOptions.base, ...chartOptions.leadsOverTime }} style={{ height: '300px' }} />
-                 </Card>
-                 <Card className="p-4">
-                    <h2 className="text-xl font-bold text-dark-text mb-4">Distribuição de Leads por Etapa</h2>
-                    <ReactECharts option={{ ...chartOptions.base, ...chartOptions.outcomes }} style={{ height: '300px' }} />
-                </Card>
             </div>
             
             <Modal isOpen={!!historyModalLead} onClose={() => setHistoryModalLead(null)}>

@@ -291,30 +291,6 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
         return fullDateRangeData;
     }, [filteredLeads]);
 
-    const pieChartData = useMemo(() => {
-        const stageMap = new Map(companyPipeline.map(s => [s.id, s.name]));
-        const counts: Record<string, number> = {};
-
-        filteredLeads.forEach(lead => {
-            let stageName = stageMap.get(lead.stage_id) || 'Desconhecido';
-
-            if (stageName === 'Finalizados') {
-                if (lead.outcome === 'convertido') {
-                    stageName = 'Convertidos';
-                } else if (lead.outcome === 'nao_convertido') {
-                    stageName = 'Não Convertidos';
-                }
-            }
-            
-            counts[stageName] = (counts[stageName] || 0) + 1;
-        });
-
-        return Object.entries(counts)
-            .filter(([, value]) => value > 0)
-            .map(([name, value]) => ({ name, value }));
-    }, [filteredLeads, companyPipeline]);
-
-
     const chartOptions = {
         base: {
             textStyle: { color: '#E0E0E0', fontFamily: 'Inter' },
@@ -367,60 +343,6 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 lineStyle: { color: '#00D1FF' }
             }]
         },
-        outcomes: {
-            tooltip: { 
-                trigger: 'item', 
-                formatter: '{a} <br/>{b}: {c} ({d}%)' 
-            },
-            legend: { show: false },
-            series: [{
-                name: 'Distribuição de Leads',
-                type: 'pie',
-                radius: ['40%', '70%'],
-                center: ['50%', '50%'],
-                avoidLabelOverlap: true,
-                itemStyle: {
-                    borderRadius: 10,
-                    borderColor: '#0A0F1E',
-                    borderWidth: 4
-                },
-                label: {
-                    show: true,
-                    position: 'outer',
-                    formatter: '{b}\n({c})',
-                    color: '#E0E0E0',
-                    fontFamily: 'Inter',
-                    fontSize: 14,
-                    fontWeight: 'normal',
-                    lineHeight: 20,
-                    alignTo: 'labelLine',
-                },
-                labelLine: {
-                    show: true,
-                    length: 20,
-                    length2: 25,
-                    smooth: true,
-                    lineStyle: {
-                        color: '#8A93A3',
-                        width: 2
-                    }
-                },
-                emphasis: {
-                    label: {
-                        show: true,
-                        fontSize: 16,
-                        fontWeight: 'bold'
-                    },
-                    itemStyle: {
-                        shadowBlur: 10,
-                        shadowOffsetX: 0,
-                        shadowColor: 'rgba(0, 0, 0, 0.5)'
-                    }
-                },
-                data: pieChartData,
-                color: ['#00D1FF', '#22C55E', '#FBBF24', '#8B5CF6', '#EF4444', '#60A5FA', '#F59E0B', '#A78BFA']
-            }]
-        }
     };
 
     const periodOptions: { id: Period; label: string }[] = [
@@ -462,14 +384,20 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 <Kpi title="Atendimento (Média)" value={formatDuration(metrics.avgClosingTime)} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                 <Card className="p-4">
-                     <h2 className="text-xl font-bold text-dark-text mb-4">Pipeline de Leads</h2>
-                     <ReactECharts option={{ ...chartOptions.base, ...chartOptions.bar }} style={{ height: '400px' }} />
-                 </Card>
-                 <Card className="p-4">
+            <div className="grid grid-cols-1 gap-6 mb-6">
+                <Card className="p-4">
+                    <h2 className="text-xl font-bold text-dark-text mb-4">Pipeline de Leads</h2>
+                    <ReactECharts option={{ ...chartOptions.base, ...chartOptions.bar }} style={{ height: '400px' }} />
+                </Card>
+            </div>
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-4">
+                    <h2 className="text-xl font-bold text-dark-text mb-4">Leads ao Longo do Tempo</h2>
+                    <ReactECharts option={{ ...chartOptions.base, ...chartOptions.leadsOverTime }} style={{ height: '300px' }} />
+                </Card>
+                <Card className="p-4">
                      <h2 className="text-xl font-bold text-dark-text mb-4">Feedbacks Recentes</h2>
-                     <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                     <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
                         {recentLeadsForTimeline.length > 0 ? (
                              recentLeadsForTimeline.map((lead) => {
                                 const events = generateLeadEvents(lead, allSalespeople);
@@ -495,16 +423,6 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                          ) : <p className="text-center text-dark-secondary py-8">Nenhum feedback no período.</p>}
                      </div>
                  </Card>
-            </div>
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="p-4">
-                    <h2 className="text-xl font-bold text-dark-text mb-4">Leads ao Longo do Tempo</h2>
-                    <ReactECharts option={{ ...chartOptions.base, ...chartOptions.leadsOverTime }} style={{ height: '300px' }} />
-                </Card>
-                 <Card className="p-4">
-                    <h2 className="text-xl font-bold text-dark-text mb-4">Distribuição de Leads por Etapa</h2>
-                    <ReactECharts option={{ ...chartOptions.base, ...chartOptions.outcomes }} style={{ height: '300px' }} />
-                </Card>
             </div>
 
             <Modal isOpen={!!historyModalLead} onClose={() => setHistoryModalLead(null)}>

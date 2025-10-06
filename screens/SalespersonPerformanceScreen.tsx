@@ -42,7 +42,8 @@ const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = v.announcedPrice - v.discount;
         // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
-        const totalCosts = v.purchasePrice + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
+        // Also added a fallback for `v.purchasePrice` to prevent arithmetic operations on a potentially non-numeric type.
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);
     const avgDaysToSell = totalSales > 0 ? vehicles.reduce((acc, v) => acc + getDaysInStock(v.entryDate, v.saleDate), 0) / totalSales : 0;

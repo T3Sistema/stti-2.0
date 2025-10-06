@@ -28,6 +28,8 @@ interface ProspectAIScreenProps {
     allSalespeople?: TeamMember[];
 }
 
+type Period = 'last_7_days' | 'last_30_days' | 'all' | 'custom';
+
 const ProspectCard: React.FC<{ title: string; count: number; color: string; }> = ({ title, count, color }) => {
   return (
     <Card className="p-4 text-center animate-fade-in">
@@ -124,6 +126,12 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const [finalizedSearch, setFinalizedSearch] = useState('');
     const [leadToReopen, setLeadToReopen] = useState<ProspectAILead | null>(null);
 
+    const [period, setPeriod] = useState<Period>('last_7_days');
+    const [customRange, setCustomRange] = useState({
+        start: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().slice(0, 10),
+        end: new Date().toISOString().slice(0, 10),
+    });
+
     const activeCompany = useMemo(() => companies.find(c => c.id === user.companyId), [companies, user.companyId]);
 
     // APPOINTMENT NOTIFICATION LOGIC
@@ -183,6 +191,33 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             lead.details?.reassigned_from === user.id
         );
     }, [prospectaiLeads, user.id]);
+
+    const filteredLeads = useMemo(() => {
+        if (period === 'all') return myLeads;
+
+        let startDate: Date;
+        let endDate: Date = new Date();
+        endDate.setHours(23, 59, 59, 999);
+
+        if (period === 'last_7_days') {
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 6);
+            startDate.setHours(0, 0, 0, 0);
+        } else if (period === 'last_30_days') {
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 29);
+            startDate.setHours(0, 0, 0, 0);
+        } else { // custom
+            if (!customRange.start || !customRange.end) return [];
+            startDate = new Date(customRange.start + 'T00:00:00');
+            endDate = new Date(customRange.end + 'T23:59:59.999');
+        }
+
+        return myLeads.filter(lead => {
+            const leadDate = new Date(lead.createdAt);
+            return leadDate >= startDate && leadDate <= endDate;
+        });
+    }, [myLeads, period, customRange]);
 
     const userNotifications = useMemo(() => notifications.filter(n => (n.recipientRole === 'salesperson' && !n.userId) || n.userId === user.id), [notifications, user.id]);
 
@@ -250,7 +285,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         const novoLeadStageId = stagesByName['Novos Leads']?.id;
         const remanejadoStageId = stagesByName['Remanejados']?.id;
 
-        myLeads.forEach(lead => {
+        filteredLeads.forEach(lead => {
             const leadStage = myCompanyStages.find(s => s.id === lead.stage_id);
 
             if (lead.details?.reassigned_from === user.id && remanejadoStageId) {
@@ -264,7 +299,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             }
         });
         return categories;
-    }, [myLeads, user.id, myCompanyStages, stagesByName]);
+    }, [filteredLeads, user.id, myCompanyStages, stagesByName]);
     
     const hasLeadInProgress = useMemo(() => {
         const emContatoStage = stagesByName['Primeira Tentativa'];
@@ -281,7 +316,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         const notConvertedCount = (categorizedLeads[stagesByName['Finalizados']?.id] || []).filter(l => l.outcome === 'nao_convertido').length;
 
         return {
-            total: myLeads.length,
+            total: filteredLeads.length,
             converted: convertedCount,
             notConverted: notConvertedCount,
             reallocated: getCount('Remanejados'),
@@ -292,7 +327,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             scheduled: getCount('Agendado'),
             finished: convertedCount + notConvertedCount,
         };
-    }, [myLeads.length, categorizedLeads, stagesByName]);
+    }, [filteredLeads, categorizedLeads, stagesByName]);
     
     const kpiCardsToRender = useMemo(() => {
         if (!activeCompany) return [];
@@ -380,6 +415,14 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const kpiSettings = activeCompany?.prospectAISettings?.show_monthly_leads_kpi;
     const showMonthlyKpi = kpiSettings?.enabled && (kpiSettings.visible_to === 'all' || kpiSettings.visible_to.includes(user.id));
 
+    const periodOptions: { id: Period; label: string }[] = [
+        { id: 'last_7_days', label: 'Últimos 7 dias' },
+        { id: 'last_30_days', label: 'Últimos 30 dias' },
+        { id: 'all', label: 'Todo o Período' },
+        { id: 'custom', label: 'Personalizado' },
+    ];
+
+
     if (!activeCompany) {
         return <div>Carregando...</div>;
     }
@@ -436,6 +479,23 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                 </div>
             </header>
             
+             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
+                <div className="bg-dark-card p-1 rounded-lg border border-dark-border flex flex-wrap items-center gap-1">
+                    {periodOptions.map(opt => (
+                        <button key={opt.id} onClick={() => setPeriod(opt.id)} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${period === opt.id ? 'bg-dark-primary text-dark-background' : 'text-dark-secondary hover:bg-dark-border/50'}`}>
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+                {period === 'custom' && (
+                    <div className="flex items-center gap-2 animate-fade-in bg-dark-card p-1 rounded-lg border border-dark-border">
+                        <input type="date" value={customRange.start} onChange={(e) => setCustomRange(r => ({...r, start: e.target.value}))} className="filter-date-input"/>
+                        <span className="text-dark-secondary text-xs">até</span>
+                        <input type="date" value={customRange.end} onChange={(e) => setCustomRange(r => ({...r, end: e.target.value}))} className="filter-date-input"/>
+                    </div>
+                )}
+            </div>
+
             {isProspectingLocked && (
                 <div className="bg-yellow-900/40 border border-yellow-500/50 rounded-lg p-4 mb-8 flex items-start gap-4 animate-fade-in">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center mt-1">
@@ -560,6 +620,10 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             <Modal isOpen={isChangePasswordModalOpen} onClose={() => setChangePasswordModalOpen(false)}>
                 <ChangePasswordForm onClose={() => setChangePasswordModalOpen(false)} />
             </Modal>
+            <style>{`
+                .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }
+                .filter-date-input::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
+            `}</style>
         </div>
     );
 };

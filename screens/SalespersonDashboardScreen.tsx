@@ -45,6 +45,7 @@ interface SalespersonDashboardScreenProps {
 
 type SalespersonView = 'stock' | 'performance';
 type StockView = 'assigned' | 'all';
+type Period = 'last_7_days' | 'last_30_days' | 'all' | 'custom';
 
 
 // --- HUNTER MODE COMPONENTS ---
@@ -275,15 +276,44 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
     const [isPerformanceView, setIsPerformanceView] = useState(false);
     const [finalizedSearch, setFinalizedSearch] = useState('');
     const [leadToReopen, setLeadToReopen] = useState<HunterLead | null>(null);
+    const [period, setPeriod] = useState<Period>('last_7_days');
+    const [customRange, setCustomRange] = useState({
+        start: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().slice(0, 10),
+        end: new Date().toISOString().slice(0, 10),
+    });
 
 
     const companyPipeline = useMemo(() => 
         activeCompany.pipeline_stages.filter(s => s.isEnabled).sort((a, b) => a.stageOrder - b.stageOrder), 
     [activeCompany]);
 
-    const myLeads = useMemo(() => 
-        hunterLeads.filter(lead => lead.salespersonId === user.id), 
-    [hunterLeads, user.id]);
+    const myLeads = useMemo(() => {
+        const baseLeads = hunterLeads.filter(lead => lead.salespersonId === user.id);
+        if (period === 'all') return baseLeads;
+
+        let startDate: Date;
+        let endDate: Date = new Date();
+        endDate.setHours(23, 59, 59, 999);
+
+        if (period === 'last_7_days') {
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 6);
+            startDate.setHours(0, 0, 0, 0);
+        } else if (period === 'last_30_days') {
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 29);
+            startDate.setHours(0, 0, 0, 0);
+        } else { // custom
+            if (!customRange.start || !customRange.end) return [];
+            startDate = new Date(customRange.start + 'T00:00:00');
+            endDate = new Date(customRange.end + 'T23:59:59.999');
+        }
+
+        return baseLeads.filter(lead => {
+            const leadDate = new Date(lead.createdAt);
+            return leadDate >= startDate && leadDate <= endDate;
+        });
+    }, [hunterLeads, user.id, period, customRange]);
 
     const categorizedLeads = useMemo(() => {
         const categories: Record<string, HunterLead[]> = {};
@@ -360,11 +390,20 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         setLeadToReopen(null);
     };
     
+    const periodOptions: { id: Period; label: string }[] = [
+        { id: 'last_7_days', label: 'Últimos 7 dias' },
+        { id: 'last_30_days', label: 'Últimos 30 dias' },
+        { id: 'all', label: 'Todo o Período' },
+        { id: 'custom', label: 'Personalizado' },
+    ];
+    
     if (isPerformanceView) {
-        return <SalespersonHunterPerformanceScreen user={user} leads={myLeads} onBack={() => setIsPerformanceView(false)} allSalespeople={teamMembers} />
+        // Passar leads não filtrados para a tela de performance
+        const allMyLeads = hunterLeads.filter(lead => lead.salespersonId === user.id);
+        return <SalespersonHunterPerformanceScreen user={user} leads={allMyLeads} onBack={() => setIsPerformanceView(false)} allSalespeople={teamMembers} />
     }
     
-    if (myLeads.length === 0) {
+    if (myLeads.length === 0 && period === 'all') {
         return (
             <div className="text-center py-16 bg-dark-card rounded-2xl border border-dark-border mt-8">
                 <CheckCircleIcon className="w-16 h-16 mx-auto text-green-400" />
@@ -379,7 +418,23 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
 
     return (
         <div className="mt-8">
-             <div className="flex justify-end mb-6">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="bg-dark-card p-1 rounded-lg border border-dark-border flex flex-wrap items-center gap-1">
+                        {periodOptions.map(opt => (
+                            <button key={opt.id} onClick={() => setPeriod(opt.id)} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${period === opt.id ? 'bg-dark-primary text-dark-background' : 'text-dark-secondary hover:bg-dark-border/50'}`}>
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                    {period === 'custom' && (
+                        <div className="flex items-center gap-2 animate-fade-in bg-dark-card p-1 rounded-lg border border-dark-border">
+                            <input type="date" value={customRange.start} onChange={(e) => setCustomRange(r => ({...r, start: e.target.value}))} className="filter-date-input"/>
+                            <span className="text-dark-secondary text-xs">até</span>
+                            <input type="date" value={customRange.end} onChange={(e) => setCustomRange(r => ({...r, end: e.target.value}))} className="filter-date-input"/>
+                        </div>
+                    )}
+                </div>
                 <button
                     onClick={() => setIsPerformanceView(true)}
                     className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
@@ -473,6 +528,10 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
             >
                 Deseja reabrir o atendimento para o lead <strong className="text-dark-text">{leadToReopen?.leadName}</strong>? Ele voltará para a primeira etapa do funil.
             </ConfirmationModal>
+            <style>{`
+                .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }
+                .filter-date-input::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
+            `}</style>
         </div>
     );
 };
@@ -480,7 +539,7 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
 
 const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({ user, onLogout }) => {
     const { 
-        companies, vehicles, teamMembers, notifications, prospectaiLeads,
+        companies, vehicles, teamMembers, notifications, prospectaiLeads, hunterLeads,
         markVehicleAsSold, markNotificationAsRead, addNotification
     } = useData();
     

@@ -48,8 +48,11 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
 
     const handleCheckboxChange = (category: keyof AdvancedFilters, value: string) => {
         setFilters(prev => {
-            // FIX: Explicitly cast `prev[category]` to `string[]` to resolve type inference issues with array methods.
-            const currentValues = prev[category] as string[];
+            // FIX: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+            // Add a type guard to ensure `currentValues` is an array before using array methods like `includes`.
+            const currentValues = prev[category];
+            if (!Array.isArray(currentValues)) return prev;
+            
             const newValues = currentValues.includes(value)
                 ? currentValues.filter(v => v !== value)
                 : [...currentValues, value];
