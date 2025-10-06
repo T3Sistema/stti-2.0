@@ -48,9 +48,8 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
 
     const handleCheckboxChange = (category: keyof AdvancedFilters, value: string) => {
         setFilters(prev => {
-            // FIX: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-            // Add a type guard to ensure `currentValues` is an array before using array methods like `includes`.
             const currentValues = prev[category];
+            // FIX: Add a type guard to ensure `currentValues` is an array before using array methods like `includes`. This resolves an error where TypeScript cannot guarantee the type and infers `v` in `.filter(v => ...)` as `unknown`.
             if (!Array.isArray(currentValues)) return prev;
             
             const newValues = currentValues.includes(value)

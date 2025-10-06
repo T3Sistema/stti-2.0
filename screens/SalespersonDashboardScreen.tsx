@@ -328,35 +328,66 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
     }, [myLeads, companyPipeline]);
     
     const hasLeadInProgress = useMemo(() => {
-        const inProgressStages = companyPipeline.filter(s => !s.isFixed && s.name !== 'Remanejados');
-        for (const stage of inProgressStages) {
-            if (categorizedLeads[stage.id]?.length > 0) {
-                return true;
-            }
-        }
-        return false;
+        const firstAttemptStage = companyPipeline.find(s => s.name === 'Primeira Tentativa');
+        return !!firstAttemptStage && (categorizedLeads[firstAttemptStage.id]?.length || 0) > 0;
     }, [categorizedLeads, companyPipeline]);
 
     const counts = useMemo(() => {
         const result: Record<string, number> = {};
-        let total = 0;
+        let activeTotal = 0;
+        
         companyPipeline.forEach(stage => {
             const count = categorizedLeads[stage.id]?.length || 0;
+            result[stage.name] = count;
+            
             if (stage.name === 'Finalizados') {
                 const converted = (categorizedLeads[stage.id] || []).filter(l => l.outcome === 'convertido').length;
                 const notConverted = (categorizedLeads[stage.id] || []).filter(l => l.outcome === 'nao_convertido').length;
                 result['Convertidos'] = converted;
                 result['Não Convertidos'] = notConverted;
-            } else {
-                 result[stage.name] = count;
-            }
-             if (!stage.isFixed || stage.name === 'Novos Leads') {
-                total += count;
+            } else if (!stage.isFixed || stage.name === 'Novos Leads') {
+                activeTotal += count;
             }
         });
-        result['Total'] = total;
+        result['Meus Leads Ativos'] = activeTotal;
         return result;
     }, [categorizedLeads, companyPipeline]);
+
+    const kpiCardsToRender = useMemo(() => {
+        const kpis: { title: string; count: number; color: string }[] = [];
+        const dynamicStageColors = ['#FBBF24', '#F59E0B', '#8B5CF6', '#60A5FA', '#34D399', '#FB923C'];
+        let colorIndex = 0;
+
+        // Adiciona KPIs estáticos e dinâmicos com base nas etapas do pipeline
+        const staticOrder = ['Meus Leads Ativos', 'Convertidos', 'Não Convertidos', 'Agendados', 'Novos Leads'];
+        const staticColors: Record<string, string> = {
+            'Meus Leads Ativos': '#00D1FF',
+            'Convertidos': '#22C55E',
+            'Não Convertidos': '#EF4444',
+            'Agendados': '#60A5FA',
+            'Novos Leads': '#FBBF24'
+        };
+
+        staticOrder.forEach(title => {
+            if (counts[title] !== undefined) {
+                kpis.push({ title, count: counts[title], color: staticColors[title] });
+            }
+        });
+
+        companyPipeline.forEach(stage => {
+            if (!stage.isFixed && !staticOrder.includes(stage.name)) {
+                kpis.push({
+                    title: stage.name,
+                    count: counts[stage.name] || 0,
+                    color: dynamicStageColors[colorIndex % dynamicStageColors.length]
+                });
+                colorIndex++;
+            }
+        });
+
+        return kpis;
+    }, [counts, companyPipeline]);
+
 
     const handleStartProspectingConfirm = async () => {
         if (!leadToProspect) return;
@@ -444,12 +475,10 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
-                <HunterProspectCard title="Meus Leads Ativos" count={counts['Total'] || 0} color="#00D1FF" />
-                <HunterProspectCard title="Convertidos" count={counts['Convertidos'] || 0} color="#22C55E" />
-                <HunterProspectCard title="Não Convertidos" count={counts['Não Convertidos'] || 0} color="#EF4444" />
-                <HunterProspectCard title="Agendados" count={counts['Agendado'] || 0} color="#60A5FA" />
-                <HunterProspectCard title="Novos Leads" count={counts['Novos Leads'] || 0} color="#FBBF24" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-6 mb-8">
+                {kpiCardsToRender.map(kpi => (
+                    <HunterProspectCard key={kpi.title} title={kpi.title} count={kpi.count} color={kpi.color} />
+                ))}
             </div>
 
             <div className="flex flex-col md:flex-row md:overflow-x-auto md:space-x-6 md:pb-4 gap-6 md:gap-0">

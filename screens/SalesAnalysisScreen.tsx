@@ -75,7 +75,8 @@ const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalRevenue = vehicles.reduce((acc, v) => acc + (v.announcedPrice - v.discount), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = v.announcedPrice - v.discount;
-        const totalCosts = v.purchasePrice + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0); // This also has the fix
+        // FIX: Added fallback for potentially null `purchasePrice` to prevent arithmetic errors.
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0); // This also has the fix
         return acc + (salePrice - totalCosts);
     }, 0);
     const averageProfit = totalSales > 0 ? totalProfit / totalSales : 0;
@@ -286,7 +287,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = v.announcedPrice - v.discount;
-            // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`, which would cause a runtime error.
+            // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
             // Also added a fallback for `v.purchasePrice` to prevent arithmetic operation on a potentially non-numeric type.
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
