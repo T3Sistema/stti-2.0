@@ -1,4 +1,5 @@
 
+
 export const getDaysRemaining = (entryDate: string, goalDays: number): number => {
     const entry = new Date(entryDate);
     const deadline = new Date(entry.setDate(entry.getDate() + goalDays));
@@ -17,6 +18,8 @@ export const getDaysInStock = (entryDate: string, saleDate?: string): number => 
 };
 
 export const formatTimeUntil = (dateString: string): string => {
+    // A string da data do Supabase está em UTC (formato ISO 8601).
+    // new Date() interpreta isso corretamente, criando um objeto Date que representa aquele ponto no tempo.
     const appointmentDate = new Date(dateString);
     const now = new Date();
     const diffMs = appointmentDate.getTime() - now.getTime();
@@ -25,29 +28,38 @@ export const formatTimeUntil = (dateString: string): string => {
         return "agora";
     }
 
-    const diffSeconds = Math.floor(diffMs / 1000);
-    const diffMinutes = Math.floor(diffSeconds / 60);
-    const diffHours = Math.floor(diffMinutes / 60);
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutesTotal = Math.floor(diffMs / (1000 * 60));
+    const diffMinutesPart = diffMinutesTotal % 60;
     const diffDays = Math.floor(diffHours / 24);
-    
-    const timeFormatter = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    // Formata a hora explicitamente para o fuso horário de São Paulo (padrão do Brasil),
+    // para garantir consistência independentemente da configuração do navegador do usuário.
+    const timeFormatter = new Intl.DateTimeFormat('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
+    });
     const formattedTime = timeFormatter.format(appointmentDate);
 
-    const isToday = appointmentDate.getDate() === now.getDate() &&
-                    appointmentDate.getMonth() === now.getMonth() &&
-                    appointmentDate.getFullYear() === now.getFullYear();
+    // Para evitar bugs de fuso horário na virada do dia, comparamos as datas zerando as horas.
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+    const startOfDayAfterTomorrow = new Date(startOfTomorrow);
+    startOfDayAfterTomorrow.setDate(startOfDayAfterTomorrow.getDate() + 1);
 
-    const isTomorrow = appointmentDate.getDate() === now.getDate() + 1 &&
-                       appointmentDate.getMonth() === now.getMonth() &&
-                       appointmentDate.getFullYear() === now.getFullYear();
+    const appointmentTimeValue = appointmentDate.getTime();
+    
+    const isToday = appointmentTimeValue >= startOfToday.getTime() && appointmentTimeValue < startOfTomorrow.getTime();
+    const isTomorrow = appointmentTimeValue >= startOfTomorrow.getTime() && appointmentTimeValue < startOfDayAfterTomorrow.getTime();
 
     if (isToday) {
         if (diffHours < 1) {
-            return `em ${diffMinutes} minutos`;
+            return `em ${diffMinutesTotal} minutos`;
         }
         if (diffHours < 4) {
-            const minutesPart = diffMinutes % 60;
-            return `em ${diffHours}h e ${minutesPart}m`;
+            return `em ${diffHours}h e ${diffMinutesPart}m`;
         }
         return `hoje às ${formattedTime}`;
     }

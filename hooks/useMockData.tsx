@@ -1064,7 +1064,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         if (newStage.name === 'Agendado' && newDetails?.appointment_date) {
-            updatePayload.appointment_at = newDetails.appointment_date;
+            // A data/hora local é recebida e convertida para o formato ISO (UTC) antes de ser enviada.
+            // Isso garante que o fuso horário seja tratado corretamente pelo banco de dados.
+            updatePayload.appointment_at = new Date(newDetails.appointment_date).toISOString();
         } else if (newStage.name !== 'Agendado') {
             updatePayload.appointment_at = null;
         }
@@ -1510,7 +1512,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 last_activity: new Date().toISOString(),
                 feedback: updatedFeedback,
                 outcome: outcome || null,
-                appointment_at: appointment_at || null,
+                // A data/hora local é recebida (se existir) e convertida para o formato ISO (UTC).
+                // Isso garante o armazenamento correto do fuso horário no banco de dados.
+                appointment_at: appointment_at ? new Date(appointment_at).toISOString() : null,
             };
             
             await updateHunterLead(lead.id, updatePayload);
