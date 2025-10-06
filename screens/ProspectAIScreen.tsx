@@ -17,6 +17,8 @@ import { ExclamationIcon } from '../components/icons/ExclamationIcon';
 import { UserGroupIcon } from '../components/icons/UserGroupIcon';
 import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import { SearchIcon } from '../components/icons/SearchIcon';
+import { CalendarIcon } from '../components/icons/CalendarIcon';
+import AgendaModal from '../components/AgendaModal';
 
 interface ProspectAIScreenProps {
     onBack: () => void;
@@ -125,6 +127,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const [isProspectingLocked, setIsProspectingLocked] = useState(false);
     const [finalizedSearch, setFinalizedSearch] = useState('');
     const [leadToReopen, setLeadToReopen] = useState<ProspectAILead | null>(null);
+    const [isAgendaModalOpen, setIsAgendaModalOpen] = useState(false);
 
     const [period, setPeriod] = useState<Period>('last_7_days');
     const [customRange, setCustomRange] = useState({
@@ -422,6 +425,12 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         { id: 'custom', label: 'Personalizado' },
     ];
 
+    const farmAppointments = useMemo(() => {
+        const agendadoStage = myCompanyStages.find(s => s.name === 'Agendado');
+        if (!agendadoStage) return [];
+        return myLeads.filter(lead => lead.stage_id === agendadoStage.id && lead.appointment_at);
+    }, [myLeads, myCompanyStages]);
+
 
     if (!activeCompany) {
         return <div>Carregando...</div>;
@@ -459,6 +468,13 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                             <span>Modo Hunter</span>
                         </button>
                     )}
+                     <button
+                        onClick={() => setIsAgendaModalOpen(true)}
+                        className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
+                    >
+                        <CalendarIcon className="w-4 h-4" />
+                        <span>Agenda</span>
+                    </button>
                      <button
                         onClick={() => setIsPerformanceView(true)}
                         className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
@@ -620,6 +636,9 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             <Modal isOpen={isChangePasswordModalOpen} onClose={() => setChangePasswordModalOpen(false)}>
                 <ChangePasswordForm onClose={() => setChangePasswordModalOpen(false)} />
             </Modal>
+
+            <AgendaModal isOpen={isAgendaModalOpen} onClose={() => setIsAgendaModalOpen(false)} appointments={farmAppointments} />
+
             <style>{`
                 .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }
                 .filter-date-input::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }

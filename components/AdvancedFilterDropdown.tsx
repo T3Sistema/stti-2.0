@@ -53,7 +53,7 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
             if (!Array.isArray(currentValues)) return prev;
             
             const newValues = currentValues.includes(value)
-                ? currentValues.filter((v: string) => v !== value)
+                ? currentValues.filter(v => v !== value)
                 : [...currentValues, value];
             return { ...prev, [category]: newValues };
         });

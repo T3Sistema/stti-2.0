@@ -55,7 +55,7 @@ interface DataContextType {
     updateProspectLeadStatus: (leadId: string, newStageId: string, details?: Record<string, any>) => Promise<void>;
     reassignProspectLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string) => Promise<void>;
     addProspectLeadFeedback: (leadId: string, feedbackText: string, images: string[]) => Promise<void>;
-    addHunterLeadAction: (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null) => Promise<void>;
+    addHunterLeadAction: (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => Promise<void>;
     addGrupoEmpresarial: (grupo: Omit<GrupoEmpresarial, 'id' | 'companyIds' | 'createdAt' | 'isActive'>, password: string) => Promise<void>;
     updateGrupoEmpresarial: (grupo: Omit<GrupoEmpresarial, 'companyIds'>) => Promise<void>;
     updateGrupoCompanies: (groupId: string, companyIds: string[]) => Promise<void>;
@@ -198,6 +198,7 @@ const mapHunterLeadFromDB = (hl: any): HunterLead => ({
     feedback: hl.feedback || [],
     lastActivity: hl.last_activity,
     prospected_at: hl.prospected_at,
+    appointment_at: hl.appointment_at,
 });
 
 const mapGrupoFromDB = (g: any): GrupoEmpresarial => ({
@@ -1478,7 +1479,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return updatedLead;
     };
     
-    const addHunterLeadAction = async (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null) => {
+    const addHunterLeadAction = async (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => {
         try {
             const imageUrls: string[] = [];
             for (const imageBase64 of images) {
@@ -1509,6 +1510,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 last_activity: new Date().toISOString(),
                 feedback: updatedFeedback,
                 outcome: outcome || null,
+                appointment_at: appointment_at || null,
             };
             
             await updateHunterLead(lead.id, updatePayload);

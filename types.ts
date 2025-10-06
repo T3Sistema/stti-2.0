@@ -241,6 +241,7 @@ export interface HunterLead {
   feedback: { text: string; createdAt: string; images?: string[] }[];
   lastActivity?: string;
   prospected_at?: string;
+  appointment_at?: string;
 }
 
 
