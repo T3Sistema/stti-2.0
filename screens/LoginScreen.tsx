@@ -136,7 +136,7 @@ const LoginForm: React.FC<{ onLogin: (role: UserRole, user?: TeamMember | AdminU
         <>
             <div className="text-center space-y-4">
                 <TriadLogo className="w-20 h-20 mx-auto text-dark-primary" />
-                <h2 className="text-3xl font-extrabold text-dark-text">STTI (Sistema Triad3 De Tráfego Inteligente)</h2>
+                <h2 className="text-3xl font-extrabold text-dark-text">STTI</h2>
                 <p className="mt-2 text-dark-secondary">Sistema Triad3 De Tráfego Inteligente</p>
             </div>
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
