@@ -21,6 +21,7 @@ import { ChatBubbleOvalLeftEllipsisIcon } from './icons/ChatBubbleOvalLeftEllips
 import { ClockIcon } from './icons/ClockIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface LeadCardProps {
     lead: ProspectAILead;
@@ -31,6 +32,7 @@ interface LeadCardProps {
     allSalespeople?: TeamMember[];
     onReassign?: (lead: ProspectAILead) => void;
     isReassignedAwayView?: boolean;
+    onReopenRequest?: (lead: ProspectAILead) => void;
 }
 
 const DetailItem: React.FC<{ icon: React.ReactNode; label: string; value: string | undefined | null; }> = ({ icon, label, value }) => {
@@ -64,7 +66,7 @@ const formatKeyToLabel = (key: string): string => {
         .join(' ');
 };
 
-const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActionable = false, isDisabled = false, isManagerView = false, allSalespeople = [], onReassign, isReassignedAwayView = false }) => {
+const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActionable = false, isDisabled = false, isManagerView = false, allSalespeople = [], onReassign, isReassignedAwayView = false, onReopenRequest }) => {
     const { companies, teamMembers, addProspectLeadFeedback, updateProspectLeadStatus } = useData();
     const [isCopied, setIsCopied] = useState(false);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -259,6 +261,14 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
             onReassign(lead);
         }
         setIsDetailModalOpen(false); // Close current modal to open the next one
+    };
+    
+    const handleReopenClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onReopenRequest) {
+            onReopenRequest(lead);
+        }
+        setIsDetailModalOpen(false);
     };
 
     const cardClassName = `p-4 transition-all duration-300 animate-fade-in ${
@@ -584,6 +594,17 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                             >
                                 <SwitchHorizontalIcon className="w-4 h-4" />
                                 Remanejar Lead
+                            </button>
+                        </div>
+                    )}
+                    {isFinalized && !isManagerView && onReopenRequest && (
+                         <div className="mt-6 pt-4 border-t border-dark-border">
+                             <button
+                                onClick={handleReopenClick}
+                                className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-3 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                            >
+                                <ArrowPathIcon className="w-4 h-4" />
+                                Reabrir Atendimento
                             </button>
                         </div>
                     )}

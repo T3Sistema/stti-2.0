@@ -16,6 +16,7 @@ import ReassignLeadModal from '../components/modals/ReassignLeadModal';
 import { ExclamationIcon } from '../components/icons/ExclamationIcon';
 import { UserGroupIcon } from '../components/icons/UserGroupIcon';
 import { CrosshairIcon } from '../components/icons/CrosshairIcon';
+import { SearchIcon } from '../components/icons/SearchIcon';
 
 interface ProspectAIScreenProps {
     onBack: () => void;
@@ -30,7 +31,7 @@ interface ProspectAIScreenProps {
 const ProspectCard: React.FC<{ title: string; count: number; color: string; }> = ({ title, count, color }) => {
   return (
     <Card className="p-4 text-center animate-fade-in">
-      <p className="text-sm font-medium text-dark-secondary truncate">{title}</p>
+      <p className="text-sm font-medium text-dark-secondary min-h-[2.5rem] flex items-center justify-center">{title}</p>
       <p className="text-4xl font-bold mt-2" style={{ color }}>{count}</p>
     </Card>
   );
@@ -120,6 +121,8 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const [leadToReassign, setLeadToReassign] = useState<ProspectAILead | null>(null);
     const [pendingLeads, setPendingLeads] = useState<ProspectAILead[]>([]);
     const [isProspectingLocked, setIsProspectingLocked] = useState(false);
+    const [finalizedSearch, setFinalizedSearch] = useState('');
+    const [leadToReopen, setLeadToReopen] = useState<ProspectAILead | null>(null);
 
     const activeCompany = useMemo(() => companies.find(c => c.id === user.companyId), [companies, user.companyId]);
 
@@ -350,6 +353,20 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             setLeadToReassign(null);
         }
     };
+
+    const handleReopenRequest = (lead: ProspectAILead) => {
+        setLeadToReopen(lead);
+    };
+
+    const confirmReopenLead = async () => {
+        if (leadToReopen) {
+            const firstStage = myCompanyStages.find(s => s.name === 'Primeira Tentativa');
+            if (firstStage) {
+                await updateProspectLeadStatus(leadToReopen.id, firstStage.id);
+            }
+            setLeadToReopen(null);
+        }
+    };
     
     const placeholderCard = (
         <div className="border-2 border-dashed border-dark-border rounded-lg p-8 text-center text-dark-secondary">
@@ -415,7 +432,6 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                         onEditProfile={() => setEditProfileModalOpen(true)}
                         onChangePassword={() => setChangePasswordModalOpen(true)}
                         onLogout={onLogout}
-                        onManageTeam={() => {}}
                     />
                 </div>
             </header>
@@ -447,10 +463,29 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             <div className="flex lg:overflow-x-auto lg:space-x-6 pb-4 flex-col lg:flex-row gap-6 lg:gap-0">
                  {columnsToRender.map(stage => {
                     const isNovosLeadsColumn = stage.name === 'Novos Leads';
+                    const isFinalizadosColumn = stage.name === 'Finalizados';
+                    const leadsForStage = (categorizedLeads[stage.id] || []).filter(lead => 
+                        !isFinalizadosColumn || !finalizedSearch ||
+                        lead.leadName.toLowerCase().includes(finalizedSearch.toLowerCase()) ||
+                        lead.leadPhone?.includes(finalizedSearch)
+                    );
+
                     return (
-                        <ProspectColumn key={stage.id} title={stage.name} count={categorizedLeads[stage.id]?.length || 0}>
-                            {(categorizedLeads[stage.id] || []).length > 0
-                                ? categorizedLeads[stage.id].map((lead, index) => (
+                        <ProspectColumn key={stage.id} title={stage.name} count={leadsForStage.length}>
+                            {isFinalizadosColumn && (
+                                <div className="relative mb-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Pesquisar leads..."
+                                        value={finalizedSearch}
+                                        onChange={(e) => setFinalizedSearch(e.target.value)}
+                                        className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
+                                    />
+                                    <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
+                                </div>
+                            )}
+                            {leadsForStage.length > 0
+                                ? leadsForStage.map((lead, index) => (
                                     <LeadCard 
                                         key={lead.id} 
                                         lead={lead} 
@@ -460,6 +495,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                                         isManagerView={isManagerView} 
                                         onReassign={setLeadToReassign} 
                                         allSalespeople={teamMembers}
+                                        onReopenRequest={handleReopenRequest}
                                     />
                                 ))
                                 : placeholderCard
@@ -494,6 +530,17 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                 confirmButtonClass="bg-green-600 hover:bg-green-700"
             >
                 Deseja mover o lead <strong className="text-dark-text">{prospectingLead?.leadName}</strong> para a etapa "Em Contato"?
+            </ConfirmationModal>
+
+            <ConfirmationModal
+                isOpen={!!leadToReopen}
+                onClose={() => setLeadToReopen(null)}
+                onConfirm={confirmReopenLead}
+                title="Reabrir Atendimento"
+                confirmButtonText="Sim, Reabrir"
+                confirmButtonClass="bg-blue-600 hover:bg-blue-700"
+            >
+                Deseja reabrir o atendimento para o lead <strong className="text-dark-text">{leadToReopen?.leadName}</strong>? Ele voltará para a primeira etapa do funil.
             </ConfirmationModal>
 
              {leadToReassign && (

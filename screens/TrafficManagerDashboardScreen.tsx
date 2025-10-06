@@ -86,7 +86,6 @@ const TrafficManagerDashboardScreen: React.FC<TrafficManagerDashboardScreenProps
                         onEditProfile={() => setEditProfileModalOpen(true)}
                         onChangePassword={() => setChangePasswordModalOpen(true)}
                         onLogout={onLogout}
-                        onManageTeam={() => {}}
                     />
                 </div>
             </header>

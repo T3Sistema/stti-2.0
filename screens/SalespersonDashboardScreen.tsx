@@ -34,6 +34,8 @@ import { LockIcon } from '../components/icons/LockIcon';
 import { UploadIcon } from '../components/icons/UploadIcon';
 import { XIcon } from '../components/icons/XIcon';
 import SalespersonHunterPerformanceScreen from './SalespersonHunterPerformanceScreen';
+import { SearchIcon } from '../components/icons/SearchIcon';
+import { ArrowPathIcon } from '../components/icons/ArrowPathIcon';
 
 
 interface SalespersonDashboardScreenProps {
@@ -49,7 +51,7 @@ type StockView = 'assigned' | 'all';
 
 const HunterProspectCard: React.FC<{ title: string; count: number; color: string; }> = ({ title, count, color }) => (
     <Card className="p-4 text-center animate-fade-in">
-        <p className="text-sm font-medium text-dark-secondary truncate">{title}</p>
+        <p className="text-sm font-medium text-dark-secondary min-h-[2.5rem] flex items-center justify-center">{title}</p>
         <p className="text-4xl font-bold mt-2" style={{ color }}>{count}</p>
     </Card>
 );
@@ -78,7 +80,8 @@ const HunterActionModal: React.FC<{
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            for (const file of Array.from(e.target.files)) {
+            // FIX: Iterate directly over FileList to ensure correct typing for 'file' and avoid Blob assignment errors.
+            for (const file of e.target.files) {
                 const reader = new FileReader();
                 reader.onloadend = () => setFeedbackImages(prev => [...prev, reader.result as string]);
                 reader.readAsDataURL(file);
@@ -173,7 +176,9 @@ const HunterLeadCard: React.FC<{
     onStartProspecting: () => void;
     onOpenActions: () => void;
     isDisabled?: boolean;
-}> = ({ lead, isNewLead, onStartProspecting, onOpenActions, isDisabled = false }) => {
+    isFinalized?: boolean;
+    onReopen?: () => void;
+}> = ({ lead, isNewLead, onStartProspecting, onOpenActions, isDisabled = false, isFinalized = false, onReopen }) => {
     const [isCopied, setIsCopied] = useState(false);
     
     const handleCopyPhone = (e: React.MouseEvent) => {
@@ -187,6 +192,8 @@ const HunterLeadCard: React.FC<{
         if (isDisabled) return;
         if (isNewLead) {
             onStartProspecting();
+        } else if (isFinalized) {
+            onReopen?.();
         } else {
             onOpenActions();
         }
@@ -215,7 +222,7 @@ const HunterLeadCard: React.FC<{
                     </div>
                 </div>
             </div>
-            {!isNewLead && (
+            {!isNewLead && !isFinalized && (
                 <div className="mt-4 pt-4 border-t border-dark-border space-y-3">
                     <div className="flex items-center justify-between gap-2 text-sm text-dark-secondary">
                         <div className="flex items-center gap-2">
@@ -234,6 +241,16 @@ const HunterLeadCard: React.FC<{
                         </div>
                     )}
                 </div>
+            )}
+             {isFinalized && !isNewLead && (
+                 <div className="mt-4 pt-4 border-t border-dark-border text-center space-y-2">
+                     <p className={`text-sm font-bold ${lead.outcome === 'convertido' ? 'text-green-400' : 'text-red-400'}`}>
+                        {lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido'}
+                     </p>
+                     <button className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2 px-3 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors">
+                         <ArrowPathIcon className="w-4 h-4" /> Reabrir Atendimento
+                     </button>
+                 </div>
             )}
         </Card>
     );
@@ -256,6 +273,8 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
     const [selectedLead, setSelectedLead] = useState<HunterLead | null>(null);
     const [leadToProspect, setLeadToProspect] = useState<HunterLead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
+    const [finalizedSearch, setFinalizedSearch] = useState('');
+    const [leadToReopen, setLeadToReopen] = useState<HunterLead | null>(null);
 
 
     const companyPipeline = useMemo(() => 
@@ -308,22 +327,6 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         result['Total'] = total;
         return result;
     }, [categorizedLeads, companyPipeline]);
-    
-    if (isPerformanceView) {
-        return <SalespersonHunterPerformanceScreen user={user} leads={myLeads} onBack={() => setIsPerformanceView(false)} allSalespeople={teamMembers} />
-    }
-    
-    if (myLeads.length === 0) {
-        return (
-            <div className="text-center py-16 bg-dark-card rounded-2xl border border-dark-border mt-8">
-                <CheckCircleIcon className="w-16 h-16 mx-auto text-green-400" />
-                <h3 className="text-2xl font-bold text-dark-text mt-4">Fila de Prospecção Vazia</h3>
-                <p className="text-dark-secondary mt-2 max-w-md mx-auto">
-                    Você não possui leads no modo Hunter. Aguarde o gestor distribuir uma nova base.
-                </p>
-            </div>
-        );
-    }
 
     const handleStartProspectingConfirm = async () => {
         if (!leadToProspect) return;
@@ -344,6 +347,34 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         }
         setLeadToProspect(null);
     };
+
+    const confirmReopenLead = async () => {
+        if (!leadToReopen) return;
+        const firstAttemptStage = companyPipeline.find(s => s.name === 'Primeira Tentativa');
+        if (firstAttemptStage) {
+            await updateHunterLead(leadToReopen.id, { 
+                stage_id: firstAttemptStage.id, 
+                outcome: null 
+            });
+        }
+        setLeadToReopen(null);
+    };
+    
+    if (isPerformanceView) {
+        return <SalespersonHunterPerformanceScreen user={user} leads={myLeads} onBack={() => setIsPerformanceView(false)} allSalespeople={teamMembers} />
+    }
+    
+    if (myLeads.length === 0) {
+        return (
+            <div className="text-center py-16 bg-dark-card rounded-2xl border border-dark-border mt-8">
+                <CheckCircleIcon className="w-16 h-16 mx-auto text-green-400" />
+                <h3 className="text-2xl font-bold text-dark-text mt-4">Fila de Prospecção Vazia</h3>
+                <p className="text-dark-secondary mt-2 max-w-md mx-auto">
+                    Você não possui leads no modo Hunter. Aguarde o gestor distribuir uma nova base.
+                </p>
+            </div>
+        );
+    }
 
 
     return (
@@ -369,16 +400,38 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
             <div className="flex flex-col md:flex-row md:overflow-x-auto md:space-x-6 md:pb-4 gap-6 md:gap-0">
                  {companyPipeline.filter(s => s.name !== 'Remanejados').map(stage => {
                     const isNewLeadColumn = stage.name === 'Novos Leads';
+                    const isFinalizedColumn = stage.name === 'Finalizados';
+
+                    const leadsForColumn = (categorizedLeads[stage.id] || []).filter(lead => 
+                        !isFinalizedColumn || !finalizedSearch || 
+                        lead.leadName.toLowerCase().includes(finalizedSearch.toLowerCase()) ||
+                        lead.leadPhone.includes(finalizedSearch)
+                    );
+
                     return (
-                        <HunterProspectColumn key={stage.id} title={stage.name} count={categorizedLeads[stage.id]?.length || 0}>
-                            {(categorizedLeads[stage.id] || []).length > 0
-                                ? categorizedLeads[stage.id].map((lead, index) => (
+                        <HunterProspectColumn key={stage.id} title={stage.name} count={leadsForColumn.length}>
+                             {isFinalizedColumn && (
+                                <div className="relative mb-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Pesquisar leads..."
+                                        value={finalizedSearch}
+                                        onChange={(e) => setFinalizedSearch(e.target.value)}
+                                        className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
+                                    />
+                                    <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
+                                </div>
+                            )}
+                            {leadsForColumn.length > 0
+                                ? leadsForColumn.map((lead, index) => (
                                     <HunterLeadCard 
                                         key={lead.id} 
                                         lead={lead}
                                         isNewLead={isNewLeadColumn}
+                                        isFinalized={isFinalizedColumn}
                                         onStartProspecting={() => setLeadToProspect(lead)}
                                         onOpenActions={() => setSelectedLead(lead)}
+                                        onReopen={() => setLeadToReopen(lead)}
                                         isDisabled={isNewLeadColumn && (hasLeadInProgress || index > 0)}
                                     />
                                 ))
@@ -408,6 +461,17 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                 confirmButtonClass="bg-green-600 hover:bg-green-700"
             >
                 Deseja iniciar a prospecção do lead <strong className="text-dark-text">{leadToProspect?.leadName}</strong>?
+            </ConfirmationModal>
+
+             <ConfirmationModal
+                isOpen={!!leadToReopen}
+                onClose={() => setLeadToReopen(null)}
+                onConfirm={confirmReopenLead}
+                title="Reabrir Atendimento"
+                confirmButtonText="Sim, Reabrir"
+                confirmButtonClass="bg-blue-600 hover:bg-blue-700"
+            >
+                Deseja reabrir o atendimento para o lead <strong className="text-dark-text">{leadToReopen?.leadName}</strong>? Ele voltará para a primeira etapa do funil.
             </ConfirmationModal>
         </div>
     );
@@ -643,7 +707,6 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                         onEditProfile={() => setEditProfileModalOpen(true)}
                         onChangePassword={() => setChangePasswordModalOpen(true)}
                         onLogout={onLogout}
-                        onManageTeam={() => {}}
                     />
                 </div>
             </header>
@@ -710,8 +773,8 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                     isOverdueFilterActive={isOverdueFilterActive}
                     onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                     onAdvancedFilterChange={setFilters}
-                    // FIX: Use Array.isArray(val) as a type guard before accessing `val.length`. This resolves a TypeScript error where `val` was inferred as 'unknown' from `Object.values(filters)`, preventing safe access to array properties.
-                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
+                    // FIX: Use Array.isArray(val) as a type guard before accessing `val.length`. Also added explicit types to the reduce function accumulator and value to resolve a TypeScript error where `val` was inferred as 'unknown', preventing safe access to array properties.
+                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val: unknown) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                     selectedSalespersonId={selectedSalespersonId}
                     onSalespersonSelect={setSelectedSalespersonId}
                     areFiltersDisabled={stockView === 'assigned'}

@@ -41,7 +41,7 @@ const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalRevenue = vehicles.reduce((acc, v) => acc + (v.announcedPrice - v.discount), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = v.announcedPrice - v.discount;
-        // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`, which would cause a runtime error.
+        // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
         const totalCosts = v.purchasePrice + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);
