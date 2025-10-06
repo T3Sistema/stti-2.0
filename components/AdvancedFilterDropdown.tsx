@@ -53,8 +53,7 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
             if (!Array.isArray(currentValues)) return prev;
             
             const newValues = currentValues.includes(value)
-// FIX: Removed explicit type `(v: string)` which caused a conflict with TypeScript's inference.
-                ? currentValues.filter(v => v !== value)
+                ? currentValues.filter((v: string) => v !== value)
                 : [...currentValues, value];
             return { ...prev, [category]: newValues };
         });

@@ -78,7 +78,8 @@ const calculateMetrics = (vehicles: Vehicle[]) => {
         // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
         // FIX: Added fallback for potentially null `purchasePrice` to prevent arithmetic errors.
-        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0); // This also has the fix
+        // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0); 
         return acc + (salePrice - totalCosts);
     }, 0);
     const averageProfit = totalSales > 0 ? totalProfit / totalSales : 0;
@@ -296,11 +297,11 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;
 
-            if (!(acc as any)[fullName]) {
-                (acc as any)[fullName] = { count: 0, totalProfit: 0 };
+            if (!acc[fullName]) {
+                acc[fullName] = { count: 0, totalProfit: 0 };
             }
-            (acc as any)[fullName].count += 1;
-            (acc as any)[fullName].totalProfit += profit;
+            acc[fullName].count += 1;
+            acc[fullName].totalProfit += profit;
             
             return acc;
         }, {} as { [model: string]: { count: number, totalProfit: number } });

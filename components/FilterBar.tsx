@@ -23,6 +23,7 @@ type StockView = 'available' | 'sold';
 interface FilterBarProps {
     onAddVehicle?: () => void;
     onOpenSalesAnalysis?: () => void;
+    onOpenProspectAnalysis?: () => void;
     onOpenLembrAI?: () => void;
     onOpenMarketingModal?: () => void;
     onOpenProspectAI?: () => void;
@@ -48,7 +49,7 @@ interface FilterBarProps {
 }
 
 const FilterBar: React.FC<FilterBarProps> = ({ 
-    onAddVehicle, onOpenSalesAnalysis, onOpenMarketingModal, onOpenLembrAI, onOpenProspectAI, salespeople,
+    onAddVehicle, onOpenSalesAnalysis, onOpenProspectAnalysis, onOpenMarketingModal, onOpenLembrAI, onOpenProspectAI, salespeople,
     vehicles, isOverdueFilterActive, onOverdueFilterToggle, onAdvancedFilterChange,
     activeAdvancedFiltersCount, selectedSalespersonId, onSalespersonSelect,
     areFiltersDisabled = false, stockView, onStockViewChange, enabledFeatures,
@@ -169,6 +170,15 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             Análise de Vendas
                         </button>
                     )}
+                     {enabledFeatures?.includes('prospectai') && onOpenProspectAnalysis && (
+                        <button
+                            onClick={onOpenProspectAnalysis}
+                            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-dark-card border border-dark-border text-dark-secondary hover:border-dark-primary transition-colors"
+                        >
+                            <BullseyeIcon className="w-4 h-4" />
+                            Análise de Prospecção
+                        </button>
+                    )}
                     {enabledFeatures?.includes('marketing') && showMarketing && onOpenMarketingModal && (
                         <button
                             onClick={onOpenMarketingModal}
@@ -184,7 +194,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                             className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-dark-card border border-dark-border text-dark-secondary hover:border-dark-primary transition-colors"
                         >
                             <BullseyeIcon className="w-4 h-4" />
-                            ProspectAI
+                            Pipeline de Vendedores
                         </button>
                     )}
                 </div>

@@ -30,6 +30,8 @@ import { ClockIcon } from '../components/icons/ClockIcon';
 import PipelineSettingsScreen from './PipelineSettingsScreen';
 import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import HunterSettingsScreen from './HunterSettingsScreen';
+import CompanyProspectPerformanceScreen from './CompanyProspectPerformanceScreen';
+import { BullseyeIcon } from '../components/icons/BullseyeIcon';
 
 
 interface DashboardScreenProps {
@@ -41,7 +43,7 @@ type StockView = 'available' | 'sold';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }) => {
     const { 
-        companies, vehicles, teamMembers, notifications,
+        companies, vehicles, teamMembers, notifications, prospectaiLeads, hunterLeads,
         updateCompany, updateTeamMember,
         deleteVehicle, deleteTeamMember,
         markVehicleAsSold, assignSalesperson,
@@ -50,7 +52,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     } = useData();
     
     // View State
-    const [currentView, setCurrentView] = useState<'dashboard' | 'salesAnalysis' | 'lembrAI' | 'prospectAI'>('dashboard');
+    const [currentView, setCurrentView] = useState<'dashboard' | 'salesAnalysis' | 'lembrAI' | 'prospectAI' | 'prospectAnalysis'>('dashboard');
     const [stockView, setStockView] = useState<StockView>('available');
     
     // Modal States
@@ -326,6 +328,18 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
         );
     }
 
+    if (currentView === 'prospectAnalysis') {
+        return (
+            <CompanyProspectPerformanceScreen
+                onBack={() => setCurrentView('prospectAI')}
+                company={activeCompany}
+                salespeople={companySalespeople}
+                prospectaiLeads={prospectaiLeads.filter(l => l.companyId === companyId)}
+                hunterLeads={hunterLeads.filter(l => l.companyId === companyId)}
+            />
+        );
+    }
+
      if (currentView === 'prospectAI') {
         if (selectedProspectUser) {
             return <ProspectAIScreen 
@@ -455,6 +469,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                     </div>
                     <div className="flex items-center gap-4">
                         <button
+                            onClick={() => setCurrentView('prospectAnalysis')}
+                            className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
+                        >
+                            <BullseyeIcon className="w-4 h-4" />
+                            <span>Análise de Prospecção</span>
+                        </button>
+                        <button
                             onClick={() => setProspectAIView('settings_choice')}
                             className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
                         >
@@ -547,6 +568,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
             <FilterBar
                 onAddVehicle={handleAddVehicle}
                 onOpenSalesAnalysis={() => setCurrentView('salesAnalysis')}
+                onOpenProspectAnalysis={() => setCurrentView('prospectAnalysis')}
                 onOpenMarketingModal={() => setMarketingModalOpen(true)}
                 onOpenLembrAI={() => setCurrentView('lembrAI')}
                 onOpenProspectAI={() => setCurrentView('prospectAI')}
