@@ -304,10 +304,10 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 axisLabel: {
                     color: '#8A93A3',
                     interval: 0,
-                    rotate: 30,
                     fontSize: 10,
-                    overflow: 'truncate',
-                    width: 80,
+                    formatter: (value: string) => {
+                        return value.replace(/ /g, '\n');
+                    }
                 },
                 axisLine: { lineStyle: { color: '#243049' } }
             },

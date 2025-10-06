@@ -38,9 +38,11 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalSales = vehicles.length;
-    const totalRevenue = vehicles.reduce((acc, v) => acc + (v.announcedPrice - v.discount), 0);
+    // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
+    const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
-        const salePrice = v.announcedPrice - v.discount;
+        // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
+        const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
         // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
         // Also added a fallback for `v.purchasePrice` to prevent arithmetic operations on a potentially non-numeric type.
         const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
@@ -145,7 +147,7 @@ const SalespersonPerformanceScreen: React.FC<SalespersonPerformanceScreenProps> 
 
     const categoryRevenue = useMemo(() => {
         const data = filteredVehicles.reduce((acc, v) => {
-            acc[v.category] = (acc[v.category] || 0) + (v.announcedPrice - v.discount);
+            acc[v.category] = (acc[v.category] || 0) + ((v.announcedPrice || 0) - (v.discount || 0));
             return acc;
         }, {} as Record<string, number>);
         return Object.entries(data).map(([label, value]) => ({ label, value, colorClass: 'bg-dark-primary' })).sort((a,b) => b.value - a.value);

@@ -72,9 +72,11 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalSales = vehicles.length;
-    const totalRevenue = vehicles.reduce((acc, v) => acc + (v.announcedPrice - v.discount), 0);
+    // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
+    const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
-        const salePrice = v.announcedPrice - v.discount;
+        // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
+        const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
         // FIX: Added fallback for potentially null `purchasePrice` to prevent arithmetic errors.
         const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0); // This also has the fix
         return acc + (salePrice - totalCosts);
@@ -247,7 +249,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
     }
     
     const revenueByModel = filteredVehicles.reduce((acc, v) => {
-        const revenue = v.announcedPrice - v.discount;
+        const revenue = (v.announcedPrice || 0) - (v.discount || 0);
         const fullName = `${v.brand} ${v.model}`;
         acc[fullName] = (acc[fullName] || 0) + revenue;
         return acc;
@@ -286,7 +288,8 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
         }
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
-            const salePrice = v.announcedPrice - v.discount;
+            // FIX: Added fallbacks for potentially null `announcedPrice`, `discount`, `purchasePrice` and `maintenance` to prevent arithmetic errors.
+            const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
             // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
             // Also added a fallback for `v.purchasePrice` to prevent arithmetic operation on a potentially non-numeric type.
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
