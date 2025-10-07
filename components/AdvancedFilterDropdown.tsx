@@ -53,7 +53,8 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
             if (!Array.isArray(currentValues)) return prev;
             
             const newValues = currentValues.includes(value)
-                ? currentValues.filter(v => v !== value)
+                // Fix: Explicitly type `v` as a string to resolve the TypeScript inference error.
+                ? currentValues.filter((v: string) => v !== value)
                 : [...currentValues, value];
             return { ...prev, [category]: newValues };
         });

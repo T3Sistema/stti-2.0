@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, FormEvent } from 'react';
 import type { UserRole, Company, TeamMember, AdminUser, GrupoEmpresarial, SalespersonProspectAISettings } from '../types';
 import { useData } from '../hooks/useMockData';

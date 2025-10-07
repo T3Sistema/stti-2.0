@@ -32,6 +32,7 @@ import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import HunterSettingsScreen from './HunterSettingsScreen';
 import CompanyProspectPerformanceScreen from './CompanyProspectPerformanceScreen';
 import { BullseyeIcon } from '../components/icons/BullseyeIcon';
+import GoalSettingsScreen from './GoalSettingsScreen';
 
 
 interface DashboardScreenProps {
@@ -71,7 +72,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const [selectedProspectUser, setSelectedProspectUser] = useState<TeamMember | null>(null);
 
     // New states for ProspectAI settings view
-    const [prospectAIView, setProspectAIView] = useState<'overview' | 'settings_choice' | 'pipeline_settings' | 'deadline_settings_list' | 'deadline_settings_form' | 'hunter_settings'>('overview');
+    const [prospectAIView, setProspectAIView] = useState<'overview' | 'settings_choice' | 'pipeline_settings' | 'deadline_settings_list' | 'deadline_settings_form' | 'hunter_settings' | 'goal_settings'>('overview');
     const [selectedSalespersonForSettings, setSelectedSalespersonForSettings] = useState<TeamMember | null>(null);
 
 
@@ -416,7 +417,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                         </div>
                     </header>
                     <p className="text-dark-secondary mb-8 text-center text-lg">O que você deseja configurar?</p>
-                    <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Card
                             className="p-6 text-center cursor-pointer transition-transform duration-300 hover:scale-105 hover:border-dark-primary/50 flex flex-col items-center justify-center gap-4"
                             onClick={() => setProspectAIView('pipeline_settings')}
@@ -441,8 +442,25 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                             <h4 className="text-xl font-bold text-dark-text">Prazos e Alertas</h4>
                             <p className="text-sm text-dark-secondary">Defina os tempos de resposta e automações para a equipe.</p>
                         </Card>
+                         <Card
+                            className="p-6 text-center cursor-pointer transition-transform duration-300 hover:scale-105 hover:border-dark-primary/50 flex flex-col items-center justify-center gap-4"
+                            onClick={() => setProspectAIView('goal_settings')}
+                        >
+                            <BullseyeIcon className="w-12 h-12 text-dark-primary" />
+                            <h4 className="text-xl font-bold text-dark-text">Configurar Metas</h4>
+                            <p className="text-sm text-dark-secondary">Defina as metas de vendas (Farm) e prospecção (Hunter).</p>
+                        </Card>
                     </div>
                 </div>
+            );
+        }
+
+        if (prospectAIView === 'goal_settings') {
+            return (
+                <GoalSettingsScreen
+                    companyId={activeCompany.id}
+                    onBack={() => setProspectAIView('settings_choice')}
+                />
             );
         }
 

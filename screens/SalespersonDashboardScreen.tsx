@@ -39,6 +39,7 @@ import { ArrowPathIcon } from '../components/icons/ArrowPathIcon';
 import GoalProgressCard from '../components/GoalProgressCard';
 import { PlusIcon } from '../components/icons/PlusIcon';
 import AddHunterLeadForm from '../components/forms/AddHunterLeadForm';
+import { SwitchHorizontalIcon } from '../components/icons/SwitchHorizontalIcon';
 
 
 interface SalespersonDashboardScreenProps {
@@ -507,6 +508,19 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
 
     return (
         <div className="mt-8">
+            {user.prospectAISettings?.deadlines?.initial_contact?.auto_reassign_enabled && (
+                <div className="bg-yellow-900/40 border border-yellow-500/50 rounded-lg p-4 mb-8 flex items-start gap-4 animate-fade-in">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center mt-1">
+                        <SwitchHorizontalIcon className="w-5 h-5 text-yellow-300" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg text-white">Modo de Remanejamento Automático Ativo</h3>
+                        <p className="text-sm text-yellow-200 mt-1">
+                            Lembrete: As regras de prospecção para novos leads (modo Farm) estão ativas. Leads não atendidos em <strong>{user.prospectAISettings.deadlines.initial_contact.minutes} minutos</strong> serão remanejados.
+                        </p>
+                    </div>
+                </div>
+            )}
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="bg-dark-card p-1 rounded-lg border border-dark-border flex flex-wrap items-center gap-1">
