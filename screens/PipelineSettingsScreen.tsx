@@ -231,7 +231,7 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
 
         const finalKpis = [
             { title: 'Leads Não Convertidos', color: '#EF4444', visible: true },
-            { title: 'Leads Remanejados', color: '#A78BFA', visible: stageMap.has('Remanejados') },
+            { title: 'Round-Robin', color: '#A78BFA', visible: stageMap.has('Remanejados') },
         ];
 
         return [...staticKpis, ...dynamicKpis, ...customKpis, ...finalKpis].filter(kpi => kpi.visible);
@@ -266,7 +266,7 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
                 {pipelineStages.map(stage => (
                     <div key={stage.id} className="w-72 flex-shrink-0 bg-dark-card/50 p-4 rounded-lg flex flex-col gap-4">
                         <div className="flex justify-between items-center">
-                            <h3 className="text-lg font-bold text-dark-text">{stage.name}</h3>
+                            <h3 className="text-lg font-bold text-dark-text">{stage.name === 'Remanejados' ? 'Round-Robin' : stage.name}</h3>
                         </div>
                         <div className={`p-4 bg-dark-background rounded-lg border border-dark-border space-y-3 transition-opacity ${!stage.isEnabled && !stage.isFixed ? 'opacity-50' : ''}`}>
                             <div className="flex items-center justify-between">

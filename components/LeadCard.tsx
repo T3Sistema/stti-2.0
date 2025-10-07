@@ -347,7 +347,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                         )}
                         
                         <div className="space-y-4 pt-2">
-                            <DetailItem icon={<CarIcon className="w-4 h-4" />} label="Veículo de Interesse" value={lead.interestVehicle} />
+                            <DetailItem icon={<CarIcon className="w-4 h-4" />} label="Interesse em:" value={lead.interestVehicle} />
                             
                             {lead.details && Object.entries(lead.details).map(([key, value]) => {
                                 if (!value || (typeof value !== 'string' && typeof value !== 'number')) return null;

@@ -278,7 +278,7 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
     const [selectedLead, setSelectedLead] = useState<HunterLead | null>(null);
     const [leadToProspect, setLeadToProspect] = useState<HunterLead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
-    const [finalizedSearch, setFinalizedSearch] = useState('');
+    const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
     const [leadToReopen, setLeadToReopen] = useState<HunterLead | null>(null);
     const [period, setPeriod] = useState<Period>('last_7_days');
     const [customRange, setCustomRange] = useState({
@@ -287,6 +287,9 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
     });
     const [isAddLeadModalOpen, setAddLeadModalOpen] = useState(false);
 
+    const handleSearchChange = (stageId: string, query: string) => {
+        setSearchQueries(prev => ({ ...prev, [stageId]: query }));
+    };
 
     const companyPipeline = useMemo(() => 
         activeCompany.pipeline_stages.filter(s => s.isEnabled).sort((a, b) => a.stageOrder - b.stageOrder), 
@@ -578,36 +581,34 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
 
             <div className="flex flex-col md:flex-row md:overflow-x-auto md:space-x-6 md:pb-4 gap-6 md:gap-0">
                  {companyPipeline.filter(s => s.name !== 'Remanejados').map(stage => {
+                    const currentQuery = searchQueries[stage.id] || '';
                     const isNewLeadColumn = stage.name === 'Novos Leads';
-                    const isFinalizedColumn = stage.name === 'Finalizados';
-
+                    
                     const leadsForColumn = (categorizedLeads[stage.id] || []).filter(lead => 
-                        !isFinalizedColumn || !finalizedSearch || 
-                        lead.leadName.toLowerCase().includes(finalizedSearch.toLowerCase()) ||
-                        lead.leadPhone.includes(finalizedSearch)
+                        !currentQuery || 
+                        lead.leadName.toLowerCase().includes(currentQuery.toLowerCase()) ||
+                        lead.leadPhone.includes(currentQuery)
                     );
 
                     return (
                         <HunterProspectColumn key={stage.id} title={stage.name} count={leadsForColumn.length}>
-                             {isFinalizedColumn && (
-                                <div className="relative mb-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Pesquisar leads..."
-                                        value={finalizedSearch}
-                                        onChange={(e) => setFinalizedSearch(e.target.value)}
-                                        className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
-                                    />
-                                    <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
-                                </div>
-                            )}
+                            <div className="relative mb-2">
+                                <input
+                                    type="text"
+                                    placeholder="Pesquisar..."
+                                    value={currentQuery}
+                                    onChange={(e) => handleSearchChange(stage.id, e.target.value)}
+                                    className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
+                                />
+                                <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
+                            </div>
                             {leadsForColumn.length > 0
                                 ? leadsForColumn.map((lead, index) => (
                                     <HunterLeadCard 
                                         key={lead.id} 
                                         lead={lead}
                                         isNewLead={isNewLeadColumn}
-                                        isFinalized={isFinalizedColumn}
+                                        isFinalized={stage.name === 'Finalizados'}
                                         onStartProspecting={() => setLeadToProspect(lead)}
                                         onOpenActions={() => setSelectedLead(lead)}
                                         onReopen={() => setLeadToReopen(lead)}
@@ -782,7 +783,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
     }, [vehicles, user.id]);
 
     // KPI Calculations
-    const totalAssignedValue = assignedVehicles.reduce((sum, v) => sum + v.announcedPrice - v.discount, 0);
+    const totalAssignedValue = assignedVehicles.reduce((sum, v) => sum + (v.announcedPrice || 0) - (v.discount || 0), 0);
 
     const salesGoalProps = {
         title: `Minha Meta de Vendas`,

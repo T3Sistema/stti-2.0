@@ -128,7 +128,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const [leadToReassign, setLeadToReassign] = useState<ProspectAILead | null>(null);
     const [pendingLeads, setPendingLeads] = useState<ProspectAILead[]>([]);
     const [isProspectingLocked, setIsProspectingLocked] = useState(false);
-    const [finalizedSearch, setFinalizedSearch] = useState('');
+    const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
     const [leadToReopen, setLeadToReopen] = useState<ProspectAILead | null>(null);
     const [isAgendaModalOpen, setIsAgendaModalOpen] = useState(false);
 
@@ -140,6 +140,10 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
 
     const activeCompany = useMemo(() => companies.find(c => c.id === user.companyId), [companies, user.companyId]);
 
+    const handleSearchChange = (stageId: string, query: string) => {
+        setSearchQueries(prev => ({ ...prev, [stageId]: query }));
+    };
+    
     // APPOINTMENT NOTIFICATION LOGIC
     useEffect(() => {
         if (!activeCompany) return;
@@ -346,7 +350,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         const remanejadosStage = myCompanyStages.find(s => s.name === 'Remanejados');
         if (remanejadosStage) {
             const count = categorizedLeads[remanejadosStage.id]?.length || 0;
-            kpis.push({ title: 'Leads Remanejados', count, color: '#A78BFA' });
+            kpis.push({ title: 'Round-Robin', count, color: '#A78BFA' });
         }
     
         // Dynamic KPIs for other stages
@@ -580,28 +584,26 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             {/* Kanban Columns */}
             <div className="flex lg:overflow-x-auto lg:space-x-6 pb-4 flex-col lg:flex-row gap-6 lg:gap-0">
                  {columnsToRender.map(stage => {
-                    const isNovosLeadsColumn = stage.name === 'Novos Leads';
-                    const isFinalizadosColumn = stage.name === 'Finalizados';
+                    const currentQuery = searchQueries[stage.id] || '';
                     const leadsForStage = (categorizedLeads[stage.id] || []).filter(lead => 
-                        !isFinalizadosColumn || !finalizedSearch ||
-                        lead.leadName.toLowerCase().includes(finalizedSearch.toLowerCase()) ||
-                        lead.leadPhone?.includes(finalizedSearch)
+                        !currentQuery ||
+                        lead.leadName.toLowerCase().includes(currentQuery.toLowerCase()) ||
+                        lead.leadPhone?.includes(currentQuery)
                     );
+                    const isNovosLeadsColumn = stage.name === 'Novos Leads';
 
                     return (
                         <ProspectColumn key={stage.id} title={stage.name} count={leadsForStage.length}>
-                            {isFinalizadosColumn && (
-                                <div className="relative mb-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Pesquisar leads..."
-                                        value={finalizedSearch}
-                                        onChange={(e) => setFinalizedSearch(e.target.value)}
-                                        className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
-                                    />
-                                    <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
-                                </div>
-                            )}
+                             <div className="relative mb-2">
+                                <input
+                                    type="text"
+                                    placeholder="Pesquisar..."
+                                    value={currentQuery}
+                                    onChange={(e) => handleSearchChange(stage.id, e.target.value)}
+                                    className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
+                                />
+                                <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
+                            </div>
                             {leadsForStage.length > 0
                                 ? leadsForStage.map((lead, index) => (
                                     <LeadCard 
@@ -621,22 +623,40 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                         </ProspectColumn>
                     );
                 })}
-                 {reallocatedColumn && (
-                    <ProspectColumn title={reallocatedColumn.name} count={categorizedLeads[reallocatedColumn.id]?.length || 0}>
-                        {(categorizedLeads[reallocatedColumn.id] || []).length > 0
-                            ? categorizedLeads[reallocatedColumn.id].map(lead => (
-                                <LeadCard 
-                                    key={lead.id} 
-                                    lead={lead} 
-                                    isReassignedAwayView={true} 
-                                    isManagerView={isManagerView} 
-                                    allSalespeople={teamMembers}
+                 {reallocatedColumn && (() => {
+                    const reallocatedQuery = searchQueries[reallocatedColumn.id] || '';
+                    const reallocatedLeads = (categorizedLeads[reallocatedColumn.id] || []).filter(lead =>
+                        !reallocatedQuery ||
+                        lead.leadName.toLowerCase().includes(reallocatedQuery.toLowerCase()) ||
+                        lead.leadPhone?.includes(reallocatedQuery)
+                    );
+                    return (
+                        <ProspectColumn title={reallocatedColumn.name === 'Remanejados' ? 'Round-Robin' : reallocatedColumn.name} count={reallocatedLeads.length}>
+                            <div className="relative mb-2">
+                                <input
+                                    type="text"
+                                    placeholder="Pesquisar..."
+                                    value={reallocatedQuery}
+                                    onChange={(e) => handleSearchChange(reallocatedColumn.id, e.target.value)}
+                                    className="w-full bg-dark-background border border-dark-border rounded-lg pl-8 pr-2 py-1.5 text-sm"
                                 />
-                            ))
-                            : placeholderCard
-                        }
-                    </ProspectColumn>
-                )}
+                                <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
+                            </div>
+                            {reallocatedLeads.length > 0
+                                ? reallocatedLeads.map(lead => (
+                                    <LeadCard 
+                                        key={lead.id} 
+                                        lead={lead} 
+                                        isReassignedAwayView={true} 
+                                        isManagerView={isManagerView} 
+                                        allSalespeople={teamMembers}
+                                    />
+                                ))
+                                : placeholderCard
+                            }
+                        </ProspectColumn>
+                    );
+                })()}
             </div>
 
             <ConfirmationModal

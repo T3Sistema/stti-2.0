@@ -235,10 +235,10 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
         }
         
         const data = Object.entries(stageCounts)
-            .map(([name, value]) => ({ name, value }))
-            .filter(item => item.name !== 'Finalizados' && stageOrderMap.has(item.name));
+            .map(([name, value]) => ({ name: name === 'Remanejados' ? 'Round-Robin' : name, value }))
+            .filter(item => item.name !== 'Finalizados' && stageOrderMap.has(item.name === 'Round-Robin' ? 'Remanejados' : item.name));
 
-        data.sort((a, b) => (stageOrderMap.get(a.name) ?? 999) - (stageOrderMap.get(b.name) ?? 999));
+        data.sort((a, b) => (stageOrderMap.get(a.name === 'Round-Robin' ? 'Remanejados' : a.name) ?? 999) - (stageOrderMap.get(b.name === 'Round-Robin' ? 'Remanejados' : b.name) ?? 999));
 
         return data;
     }, [filteredLeads, companyPipeline, user.id]);
