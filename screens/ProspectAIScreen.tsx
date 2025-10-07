@@ -244,7 +244,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const nonActionableStageNames = ['Novos Leads', 'Finalizados', 'Remanejados'];
+        const nonActionableStageNames = ['Novos Leads', 'Finalizados', 'Remanejados', 'Agendado'];
         const actionableStageIds = myCompanyStages
             .filter(s => s.isEnabled && !nonActionableStageNames.includes(s.name))
             .map(s => s.id);

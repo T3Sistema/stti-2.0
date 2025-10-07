@@ -108,7 +108,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 setCurrentView('prospectAI');
             }
         }
-    }, [activeCompany]); // Depend on the company object to re-evaluate when it changes.
+    }, [activeCompany, companyFeatures]); // Depend on the company object to re-evaluate when it changes.
     
     // Reset prospect AI view when switching main views
     useEffect(() => {
