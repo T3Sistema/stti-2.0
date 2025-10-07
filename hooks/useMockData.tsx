@@ -64,6 +64,7 @@ interface DataContextType {
     updatePipelineStage: (companyId: string, stage: Partial<PipelineStage> & { id: string }) => Promise<void>;
     deletePipelineStage: (companyId: string, stageId: string) => Promise<{ success: boolean; message?: string }>;
     uploadHunterLeads: (leads: any[]) => Promise<void>;
+    addHunterLead: (leadData: { name: string; phone: string; companyId: string; salespersonId: string; }) => Promise<void>;
     updateHunterLead: (leadId: string, updates: any) => Promise<HunterLead>;
     updateMonitorSettings: (settings: Omit<MonitorSettings, 'id'>) => Promise<void>;
     addMonitorChatMessage: (message: Omit<MonitorChatMessage, 'id' | 'created_at'>) => Promise<void>;
@@ -1470,6 +1471,58 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setHunterLeads(prev => [...prev, ...newLeads]);
     };
 
+    const addHunterLead = async (leadData: { name: string; phone: string; companyId: string; salespersonId: string; }) => {
+        const { name, phone, companyId, salespersonId } = leadData;
+        const company = companies.find(c => c.id === companyId);
+        if (!company) {
+            throw new Error("Empresa não encontrada para adicionar o lead.");
+        }
+
+        const primeiraTentativaStage = company.pipeline_stages.find(s => s.name === 'Primeira Tentativa');
+        const novosLeadsStage = company.pipeline_stages.find(s => s.name === 'Novos Leads');
+
+        if (!primeiraTentativaStage || !novosLeadsStage) {
+            throw new Error("Pipeline não configurado corretamente. Etapas 'Novos Leads' ou 'Primeira Tentativa' não encontradas.");
+        }
+
+        // Verifica se o vendedor já tem um lead na etapa "Primeira Tentativa"
+        const isPrimeiraTentativaOccupied = hunterLeads.some(
+            lead => lead.salespersonId === salespersonId && lead.stage_id === primeiraTentativaStage.id
+        );
+
+        let targetStageId;
+        let prospectedAt = null;
+
+        if (isPrimeiraTentativaOccupied) {
+            // Se ocupado, envia para "Novos Leads"
+            targetStageId = novosLeadsStage.id;
+        } else {
+            // Se livre, envia diretamente para "Primeira Tentativa" e marca como prospectado
+            targetStageId = primeiraTentativaStage.id;
+            prospectedAt = new Date().toISOString();
+        }
+
+        const now = new Date().toISOString();
+        const newLeadData = {
+            company_id: companyId,
+            salesperson_id: salespersonId,
+            lead_name: name,
+            lead_phone: phone,
+            source: 'Captado pelo Vendedor' as const,
+            stage_id: targetStageId,
+            prospected_at: prospectedAt,
+            last_activity: now,
+            feedback: [],
+        };
+        const { data, error } = await supabase.from('hunter_leads').insert(newLeadData).select().single();
+        if (error) {
+            console.error("Error adding hunter lead:", error);
+            throw error;
+        }
+        const addedLead = mapHunterLeadFromDB(data);
+        setHunterLeads(prev => [addedLead, ...prev]);
+    };
+
     const updateHunterLead = async (leadId: string, updates: any): Promise<HunterLead> => {
       const { data, error } = await supabase.from('hunter_leads').update(updates).eq('id', leadId).select().single();
       if (error) {
@@ -1612,6 +1665,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updatePipelineStage,
         deletePipelineStage,
         uploadHunterLeads,
+        addHunterLead,
         updateHunterLead,
         updateMonitorSettings,
         addMonitorChatMessage,

@@ -235,7 +235,7 @@ export interface HunterLead {
   salespersonId: string | null;
   leadName: string;
   leadPhone: string;
-  source: 'Base da Empresa' | 'Base Triad3';
+  source: 'Base da Empresa' | 'Base Triad3' | 'Captado pelo Vendedor';
   stage_id: string;
   outcome?: 'convertido' | 'nao_convertido' | null;
   feedback: { text: string; createdAt: string; images?: string[] }[];

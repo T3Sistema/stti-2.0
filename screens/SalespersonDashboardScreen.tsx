@@ -37,6 +37,8 @@ import SalespersonHunterPerformanceScreen from './SalespersonHunterPerformanceSc
 import { SearchIcon } from '../components/icons/SearchIcon';
 import { ArrowPathIcon } from '../components/icons/ArrowPathIcon';
 import GoalProgressCard from '../components/GoalProgressCard';
+import { PlusIcon } from '../components/icons/PlusIcon';
+import AddHunterLeadForm from '../components/forms/AddHunterLeadForm';
 
 
 interface SalespersonDashboardScreenProps {
@@ -271,7 +273,7 @@ const HunterProspectColumn: React.FC<{ title: string; count: number; children: R
   };
 
 const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ user, activeCompany }) => {
-    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers } = useData();
+    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers, addHunterLead } = useData();
     const [selectedLead, setSelectedLead] = useState<HunterLead | null>(null);
     const [leadToProspect, setLeadToProspect] = useState<HunterLead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
@@ -282,6 +284,7 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         start: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().slice(0, 10),
         end: new Date().toISOString().slice(0, 10),
     });
+    const [isAddLeadModalOpen, setAddLeadModalOpen] = useState(false);
 
 
     const companyPipeline = useMemo(() => 
@@ -460,6 +463,16 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         { id: 'custom', label: 'Personalizado' },
     ];
     
+    const handleAddOwnLead = async (name: string, phone: string) => {
+        await addHunterLead({
+            name,
+            phone,
+            companyId: activeCompany.id,
+            salespersonId: user.id,
+        });
+        alert('Lead cadastrado e adicionado à sua fila de prospecção!');
+    };
+
     if (isPerformanceView) {
         // Passar leads não filtrados para a tela de performance
         const allMyLeads = hunterLeads.filter(lead => lead.salespersonId === user.id);
@@ -472,8 +485,21 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                 <CheckCircleIcon className="w-16 h-16 mx-auto text-green-400" />
                 <h3 className="text-2xl font-bold text-dark-text mt-4">Fila de Prospecção Vazia</h3>
                 <p className="text-dark-secondary mt-2 max-w-md mx-auto">
-                    Você não possui leads no modo Hunter. Aguarde o gestor distribuir uma nova base.
+                    Você não possui leads no modo Hunter. Aguarde o gestor distribuir uma nova base ou cadastre um lead captado por você.
                 </p>
+                 <button
+                    onClick={() => setAddLeadModalOpen(true)}
+                    className="mt-6 flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold text-sm mx-auto"
+                >
+                    <PlusIcon className="w-4 h-4" />
+                    Cadastrar Lead
+                </button>
+                <Modal isOpen={isAddLeadModalOpen} onClose={() => setAddLeadModalOpen(false)}>
+                    <AddHunterLeadForm
+                        onSave={handleAddOwnLead}
+                        onClose={() => setAddLeadModalOpen(false)}
+                    />
+                </Modal>
             </div>
         );
     }
@@ -498,13 +524,22 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                         </div>
                     )}
                 </div>
-                <button
-                    onClick={() => setIsPerformanceView(true)}
-                    className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
-                >
-                    <ChartBarIcon className="w-4 h-4" />
-                    <span>Analisar Desempenho</span>
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsPerformanceView(true)}
+                        className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
+                    >
+                        <ChartBarIcon className="w-4 h-4" />
+                        <span>Analisar Desempenho</span>
+                    </button>
+                    <button
+                        onClick={() => setAddLeadModalOpen(true)}
+                        className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold text-sm"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        <span>Cadastrar Lead</span>
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-6 mb-8">
@@ -603,6 +638,12 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
             >
                 Deseja reabrir o atendimento para o lead <strong className="text-dark-text">{leadToReopen?.leadName}</strong>? Ele voltará para a primeira etapa do funil.
             </ConfirmationModal>
+             <Modal isOpen={isAddLeadModalOpen} onClose={() => setAddLeadModalOpen(false)}>
+                <AddHunterLeadForm
+                    onSave={handleAddOwnLead}
+                    onClose={() => setAddLeadModalOpen(false)}
+                />
+            </Modal>
             <style>{`
                 .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }
                 .filter-date-input::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
