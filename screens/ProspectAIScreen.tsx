@@ -19,6 +19,7 @@ import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import { SearchIcon } from '../components/icons/SearchIcon';
 import { CalendarIcon } from '../components/icons/CalendarIcon';
 import AgendaModal from '../components/AgendaModal';
+import GoalProgressCard from '../components/GoalProgressCard';
 
 interface ProspectAIScreenProps {
     onBack: () => void;
@@ -110,6 +111,7 @@ const ProspectColumn: React.FC<{ title: string; count: number; children: React.R
 const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToHunter, user, onLogout, showBackButton = true, isManagerView = false, allSalespeople = [] }) => {
     const { 
         prospectaiLeads, 
+        hunterLeads,
         updateProspectLeadStatus,
         reassignProspectLead,
         companies,
@@ -339,7 +341,6 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     
         // Static KPIs as requested
         kpis.push({ title: 'Meus Leads Atribuídos', count: counts.total, color: '#00D1FF' });
-        kpis.push({ title: 'Leads Convertidos', count: counts.converted, color: '#22C55E' });
         
         const remanejadosStage = myCompanyStages.find(s => s.name === 'Remanejados');
         if (remanejadosStage) {
@@ -365,14 +366,34 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             colorIndex++;
         });
     
-        // Static KPI for Not Converted
-        const finalizadosStage = myCompanyStages.find(s => s.name === 'Finalizados');
-        if (finalizadosStage) {
-            kpis.push({ title: 'Leads Não Convertidos', count: counts.notConverted, color: '#EF4444' });
-        }
-        
         return kpis;
     }, [activeCompany, myCompanyStages, counts, categorizedLeads]);
+
+    const monthlyTotalConvertedLeads = useMemo(() => {
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
+
+        const finalizadosStageId = myCompanyStages.find(s => s.name === 'Finalizados')?.id;
+        if (!finalizadosStageId) return 0;
+    
+        // Converted FARM leads (from all of the user's farm leads)
+        const convertedFarm = prospectaiLeads.filter(lead => {
+            if (lead.salespersonId !== user.id || lead.stage_id !== finalizadosStageId || lead.outcome !== 'convertido') return false;
+            const conversionDate = lead.last_feedback_at ? new Date(lead.last_feedback_at) : null;
+            return conversionDate && conversionDate >= startOfMonth && conversionDate <= endOfMonth;
+        }).length;
+    
+        // Converted HUNTER leads (from all of the user's hunter leads)
+        const convertedHunter = hunterLeads.filter(lead => {
+            if (lead.salespersonId !== user.id || lead.stage_id !== finalizadosStageId || lead.outcome !== 'convertido') return false;
+            const conversionDate = lead.lastActivity ? new Date(lead.lastActivity) : null;
+            return conversionDate && conversionDate >= startOfMonth && conversionDate <= endOfMonth;
+        }).length;
+    
+        return convertedFarm + convertedHunter;
+    }, [prospectaiLeads, hunterLeads, user.id, myCompanyStages]);
 
 
     const handleStartProspecting = async () => {
@@ -528,6 +549,12 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
 
             {/* Top Row Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-6 mb-8">
+                <GoalProgressCard 
+                    title="Meta de Vendas (Mês)"
+                    current={monthlyTotalConvertedLeads}
+                    goal={user.monthlySalesGoal}
+                    color="#22C55E"
+                />
                 {showMonthlyKpi && <MonthlyLeadsKpi companyId={user.companyId} />}
                 {kpiCardsToRender.map(kpi => (
                     <ProspectCard key={kpi.title} title={kpi.title} count={kpi.count} color={kpi.color} />

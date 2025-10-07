@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, FormEvent, ChangeEvent } from 'react';
 import { useData } from '../hooks/useMockData';
-import { Vehicle, TeamMember, HunterLead, PipelineStage, Company } from '../types';
+import { Vehicle, TeamMember, HunterLead, PipelineStage, Company, ProspectAILead } from '../types';
 import KpiCard from '../components/KpiCard';
 import VehicleCard from '../components/VehicleCard';
 import { formatCurrency } from '../utils/calculationUtils';
@@ -36,6 +36,7 @@ import { XIcon } from '../components/icons/XIcon';
 import SalespersonHunterPerformanceScreen from './SalespersonHunterPerformanceScreen';
 import { SearchIcon } from '../components/icons/SearchIcon';
 import { ArrowPathIcon } from '../components/icons/ArrowPathIcon';
+import GoalProgressCard from '../components/GoalProgressCard';
 
 
 interface SalespersonDashboardScreenProps {
@@ -270,7 +271,7 @@ const HunterProspectColumn: React.FC<{ title: string; count: number; children: R
   };
 
 const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ user, activeCompany }) => {
-    const { hunterLeads, updateHunterLead, addHunterLeadAction, teamMembers } = useData();
+    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers } = useData();
     const [selectedLead, setSelectedLead] = useState<HunterLead | null>(null);
     const [leadToProspect, setLeadToProspect] = useState<HunterLead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
@@ -388,6 +389,37 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         return kpis;
     }, [counts, companyPipeline]);
 
+    const monthlyTotalConvertedLeads = useMemo(() => {
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        endOfMonth.setHours(23, 59, 59, 999);
+    
+        const finalizadosStageId = companyPipeline.find(s => s.name === 'Finalizados')?.id;
+        if (!finalizadosStageId) return 0;
+        
+        // Converted HUNTER leads (from all of the user's hunter leads)
+        const allMyHunterLeads = hunterLeads.filter(lead => lead.salespersonId === user.id);
+        const convertedHunter = allMyHunterLeads.filter(lead => {
+            if (lead.stage_id !== finalizadosStageId || lead.outcome !== 'convertido') return false;
+            const conversionDate = lead.lastActivity ? new Date(lead.lastActivity) : null;
+            return conversionDate && conversionDate >= startOfMonth && conversionDate <= endOfMonth;
+        }).length;
+    
+        // Converted FARM leads (from all of the user's farm leads)
+        const allMyFarmLeads = prospectaiLeads.filter(lead => lead.salespersonId === user.id);
+        const convertedFarm = allMyFarmLeads.filter(lead => {
+            if (lead.stage_id !== finalizadosStageId || lead.outcome !== 'convertido') return false;
+            const conversionDate = lead.last_feedback_at ? new Date(lead.last_feedback_at) : null;
+            return conversionDate && conversionDate >= startOfMonth && conversionDate <= endOfMonth;
+        }).length;
+    
+        return convertedFarm + convertedHunter;
+    }, [hunterLeads, prospectaiLeads, user.id, companyPipeline]);
+    
+    const hunterGoal = user.prospectAISettings?.hunter_goals;
+    const prospectedLeadsInPeriod = useMemo(() => myLeads.filter(l => l.prospected_at).length, [myLeads]);
+
 
     const handleStartProspectingConfirm = async () => {
         if (!leadToProspect) return;
@@ -476,6 +508,20 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-6 mb-8">
+                 <GoalProgressCard 
+                    title="Meta de Vendas (Mês)"
+                    current={monthlyTotalConvertedLeads}
+                    goal={user.monthlySalesGoal}
+                    color="#22C55E"
+                />
+                {hunterGoal && hunterGoal.value > 0 && (
+                    <GoalProgressCard 
+                        title={`Meta Prospecção (${hunterGoal.type === 'daily' ? 'Diária' : hunterGoal.type === 'weekly' ? 'Semanal' : 'Mensal'})`}
+                        current={prospectedLeadsInPeriod}
+                        goal={hunterGoal.value}
+                        color="#38BDF8"
+                    />
+                )}
                 {kpiCardsToRender.map(kpi => (
                     <HunterProspectCard key={kpi.title} title={kpi.title} count={kpi.count} color={kpi.color} />
                 ))}
