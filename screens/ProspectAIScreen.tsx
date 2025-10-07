@@ -100,7 +100,7 @@ const ProspectColumn: React.FC<{ title: string; count: number; children: React.R
   return (
     <div className="w-full lg:w-72 flex-shrink-0 bg-dark-card/50 p-4 rounded-lg flex flex-col gap-4">
       <h3 className="text-lg font-bold text-dark-text">{title} ({count})</h3>
-      <div className="space-y-4">
+      <div className="space-y-4 overflow-y-auto pr-2 max-h-[calc(100vh-25rem)]">
         {children}
       </div>
     </div>
