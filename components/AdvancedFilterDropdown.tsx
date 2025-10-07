@@ -49,12 +49,11 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
     const handleCheckboxChange = (category: keyof AdvancedFilters, value: string) => {
         setFilters(prev => {
             const currentValues = prev[category];
-            // FIX: Add a type guard to ensure `currentValues` is an array before using array methods like `includes`. This resolves an error where TypeScript cannot guarantee the type and infers `v` in `.filter(v => ...)` as `unknown`.
+            // FIX: Add a type guard to ensure `currentValues` is an array before using array methods.
             if (!Array.isArray(currentValues)) return prev;
             
             const newValues = currentValues.includes(value)
-                // Fix: Explicitly type `v` as a string to resolve the TypeScript inference error.
-                ? currentValues.filter((v: string) => v !== value)
+                ? currentValues.filter(v => v !== value)
                 : [...currentValues, value];
             return { ...prev, [category]: newValues };
         });

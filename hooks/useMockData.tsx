@@ -231,6 +231,40 @@ const defaultCompanyProspectAISettings = {
   show_monthly_leads_kpi: { enabled: false, visible_to: [] },
 };
 
+const mapCompanyFromDB = (c: any): Company => ({
+    id: c.id,
+    name: c.name,
+    isActive: c.is_active,
+    logoUrl: c.logo_url,
+    cnpj: c.cnpj,
+    phone: c.phone,
+    email: c.email,
+    instagram: c.instagram,
+    ownerName: c.owner_name,
+    ownerPhone: c.owner_phone,
+    ownerEmail: c.owner_email,
+    monthlySalesGoal: c.monthly_sales_goal,
+    monthlyAdBudget: c.monthly_ad_budget,
+    marketingDriveUrl: c.marketing_drive_url,
+    visibleFields: c.visible_fields,
+    enabledFeatures: c.enabled_features || ['estoque_inteligente', 'prospectai', 'marketing'], // Default all for backwards compatibility
+    pipeline_stages: c.pipeline_stages || [],
+    prospectAISettings: {
+        ...defaultCompanyProspectAISettings,
+        ...(c.prospect_ai_settings || {}),
+    },
+});
+
+const mapMaintenanceFromDB = (m: any): MaintenanceRecord => ({
+    id: m.id,
+    vehicleId: m.vehicle_id,
+    description: m.description,
+    cost: m.cost,
+    date: m.date,
+    invoiceUrl: m.invoice_url
+});
+
+
 const defaultPipelineStages: PipelineStage[] = [
   { id: crypto.randomUUID(), name: 'Novos Leads', stageOrder: 0, isFixed: true, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Primeira Tentativa', stageOrder: 1, isFixed: false, isEnabled: true },
@@ -278,7 +312,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAdminNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     };
 
-    // Fetch initial data
+    // Fetch initial data and set up realtime subscriptions
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
@@ -325,40 +359,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (monitorChatHistoryError) throw monitorChatHistoryError;
                 
                 // MAP DB snake_case to client camelCase
-                const mappedCompanies: Company[] = (companiesData || []).map((c: any) => ({
-                    id: c.id,
-                    name: c.name,
-                    isActive: c.is_active,
-                    logoUrl: c.logo_url,
-                    cnpj: c.cnpj,
-                    phone: c.phone,
-                    email: c.email,
-                    instagram: c.instagram,
-                    ownerName: c.owner_name,
-                    ownerPhone: c.owner_phone,
-                    ownerEmail: c.owner_email,
-                    monthlySalesGoal: c.monthly_sales_goal,
-                    monthlyAdBudget: c.monthly_ad_budget,
-                    marketingDriveUrl: c.marketing_drive_url,
-                    visibleFields: c.visible_fields,
-                    enabledFeatures: c.enabled_features || ['estoque_inteligente', 'prospectai', 'marketing'], // Default all for backwards compatibility
-                    pipeline_stages: c.pipeline_stages || [],
-                    prospectAISettings: {
-                        ...defaultCompanyProspectAISettings,
-                        ...(c.prospect_ai_settings || {}),
-                    },
-                }));
-
+                const mappedCompanies: Company[] = (companiesData || []).map(mapCompanyFromDB);
                 const mappedTeamMembers: TeamMember[] = (teamMembersData || []).map(mapTeamMemberFromDB);
                 const mappedVehicles: Vehicle[] = (vehiclesData || []).map(mapVehicleFromDB);
-                const mappedMaintenance: MaintenanceRecord[] = (maintenanceData || []).map((m: any) => ({
-                    id: m.id,
-                    vehicleId: m.vehicle_id,
-                    description: m.description,
-                    cost: m.cost,
-                    date: m.date,
-                    invoiceUrl: m.invoice_url
-                }));
+                const mappedMaintenance: MaintenanceRecord[] = (maintenanceData || []).map(mapMaintenanceFromDB);
                 const mappedProspects: ProspectAILead[] = (prospectaiData || []).map(mapProspectFromDB);
                 const mappedHunterLeads: HunterLead[] = (hunterLeadsData || []).map(mapHunterLeadFromDB);
                 const mappedGrupos: GrupoEmpresarial[] = (gruposData || []).map(mapGrupoFromDB);
@@ -396,39 +400,100 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         fetchData();
         
-        // Realtime subscription for team member updates to ensure live data sync.
-        const teamMemberSubscription = supabase
-          .channel('public:team_members')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'team_members' },
-            (payload) => {
-              console.log('Team member change received!', payload);
-              if (payload.eventType === 'UPDATE') {
-                const updatedMember = mapTeamMemberFromDB(payload.new);
-                setTeamMembers(prevMembers =>
-                  prevMembers.map(member =>
-                    member.id === updatedMember.id ? updatedMember : member
-                  )
-                );
-              } else if (payload.eventType === 'INSERT') {
-                const newMember = mapTeamMemberFromDB(payload.new);
-                setTeamMembers(prevMembers => {
-                    // Avoid duplicates if the inserting client already added it optimistically
-                    if (prevMembers.some(m => m.id === newMember.id)) return prevMembers;
-                    return [...prevMembers, newMember];
-                });
-              } else if (payload.eventType === 'DELETE') {
-                const deletedId = payload.old.id;
-                setTeamMembers(prevMembers => prevMembers.filter(member => member.id !== deletedId));
-              }
-            }
-          )
-          .subscribe();
+        // --- REALTIME SUBSCRIPTIONS ---
 
-        // Cleanup subscription on component unmount
+        const handleInsert = (setter: any, mapper?: (payload: any) => any, prepend = false) => (payload: any) => {
+            const newItem = mapper ? mapper(payload.new) : payload.new;
+            setter((prev: any[]) => {
+                if (prev.some(item => item.id === newItem.id)) return prev;
+                return prepend ? [newItem, ...prev] : [...prev, newItem];
+            });
+        };
+
+        const handleUpdate = (setter: any, mapper?: (payload: any) => any) => (payload: any) => {
+            const updatedItem = mapper ? mapper(payload.new) : payload.new;
+            setter((prev: any[]) => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+        };
+
+        const handleDelete = (setter: any) => (payload: any) => {
+            setter((prev: any[]) => prev.filter(item => item.id !== payload.old.id));
+        };
+
+        const createSubscription = (channelName: string, table: string, setter: any, mapper?: (payload: any) => any, prependOnInsert = false) => {
+            return supabase.channel(channelName)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, handleInsert(setter, mapper, prependOnInsert))
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table }, handleUpdate(setter, mapper))
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table }, handleDelete(setter))
+                .subscribe();
+        };
+
+        const teamMemberSubscription = createSubscription('realtime:team_members', 'team_members', setTeamMembers, mapTeamMemberFromDB);
+        const companiesSubscription = createSubscription('realtime:companies', 'companies', setCompanies, mapCompanyFromDB);
+        const prospectaiSubscription = createSubscription('realtime:prospectai', 'prospectai', setProspectaiLeads, mapProspectFromDB, true);
+        const hunterLeadsSubscription = createSubscription('realtime:hunter_leads', 'hunter_leads', setHunterLeads, mapHunterLeadFromDB, true);
+        const remindersSubscription = createSubscription('realtime:reminders', 'reminders', setReminders);
+        const gruposSubscription = createSubscription('realtime:grupos_empresariais', 'grupos_empresariais', setGruposEmpresariais, mapGrupoFromDB);
+        const chatSubscription = createSubscription('realtime:monitor_chat_history', 'monitor_chat_history', setMonitorChatHistory);
+        
+        const vehiclesSubscription = supabase.channel('realtime:vehicles')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vehicles' }, (payload) => {
+                const newVehicle = mapVehicleFromDB(payload.new);
+                newVehicle.maintenance = [];
+                setVehicles(prev => [...prev.filter(v => v.id !== newVehicle.id), newVehicle]);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vehicles' }, (payload) => {
+                const updatedVehicle = mapVehicleFromDB(payload.new);
+                setVehicles(prev => prev.map(v => 
+                    v.id === updatedVehicle.id ? { ...updatedVehicle, maintenance: v.maintenance } : v
+                ));
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'vehicles' }, (payload) => {
+                setVehicles(prev => prev.filter(v => v.id !== payload.old.id));
+            })
+            .subscribe();
+
+        const maintenanceSubscription = supabase.channel('realtime:maintenance_records')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_records' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    const newRecord = mapMaintenanceFromDB(payload.new);
+                    setMaintenanceRecords(prev => [...prev.filter(r => r.id !== newRecord.id), newRecord]);
+                    setVehicles(prev => prev.map(v => v.id === newRecord.vehicleId ? { ...v, maintenance: [...(v.maintenance || []), newRecord] } : v));
+                } else if (payload.eventType === 'UPDATE') {
+                    const updatedRecord = mapMaintenanceFromDB(payload.new);
+                    setMaintenanceRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+                    setVehicles(prev => prev.map(v => v.id === updatedRecord.vehicleId ? { ...v, maintenance: (v.maintenance || []).map(m => m.id === updatedRecord.id ? updatedRecord : m) } : v));
+                } else if (payload.eventType === 'DELETE') {
+                    const deletedRecord = payload.old as { id: string, vehicle_id: string };
+                    setMaintenanceRecords(prev => prev.filter(r => r.id !== deletedRecord.id));
+                    setVehicles(prev => prev.map(v => v.id === deletedRecord.vehicle_id ? { ...v, maintenance: (v.maintenance || []).filter(m => m.id !== deletedRecord.id) } : v));
+                }
+            })
+            .subscribe();
+        
+        const logsSubscription = supabase.channel('realtime:logs')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, (payload) => {
+                const newLog: LogEntry = payload.new as LogEntry;
+                setLogs(prev => [newLog, ...prev.filter(l => l.id !== newLog.id)]);
+            }).subscribe();
+        
+        const monitorSettingsSubscription = supabase.channel('realtime:monitor_settings')
+             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'monitor_settings' }, (payload) => {
+                setMonitorSettings(payload.new as MonitorSettings);
+             }).subscribe();
+
+        // Cleanup subscriptions on component unmount
         return () => {
           supabase.removeChannel(teamMemberSubscription);
+          supabase.removeChannel(companiesSubscription);
+          supabase.removeChannel(prospectaiSubscription);
+          supabase.removeChannel(hunterLeadsSubscription);
+          supabase.removeChannel(remindersSubscription);
+          supabase.removeChannel(gruposSubscription);
+          supabase.removeChannel(chatSubscription);
+          supabase.removeChannel(vehiclesSubscription);
+          supabase.removeChannel(maintenanceSubscription);
+          supabase.removeChannel(logsSubscription);
+          supabase.removeChannel(monitorSettingsSubscription);
         };
     }, []);
 
@@ -452,36 +517,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (!data || data.length === 0) return;
 
-        const enrichedLog: LogEntry = {
-            ...data[0],
-            companyName: company?.name,
-            userName: user?.name
-        };
-
-        setLogs(prev => [enrichedLog, ...prev]);
+        // The realtime subscription will handle updating the state, so we don't need to do it here.
     };
 
     const updateCompanyStatus = async (id: string, isActive: boolean) => {
         const company = companies.find(c => c.id === id);
         if (!company) return;
 
-        // Store original state for potential rollback
-        const originalCompanies = [...companies];
-        
-        // Optimistic UI update
-        setCompanies(prev => prev.map(c => c.id === id ? { ...c, isActive } : c));
-
+        // Optimistic UI update is no longer needed as realtime handles it.
         const { error } = await supabase.from('companies').update({ is_active: isActive }).eq('id', id);
         
         if (error) {
             console.error("Error updating company status:", error);
-            // On error, revert to the original state
-            setCompanies(originalCompanies);
             alert("Falha ao atualizar status. Verifique suas permissões de banco de dados (RLS).");
-            return; // Stop execution
+            // Re-fetch data on error to revert optimistic updates if they existed.
+            return;
         }
 
-        // If successful, log activity
         await logActivity(
             isActive ? 'COMPANY_APPROVED' : 'COMPANY_DEACTIVATED',
             `Empresa ${company.name} foi ${isActive ? 'aprovada' : 'desativada'}.`,
@@ -548,7 +600,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             avatar_url: 'https://aisfizoyfpcisykarrnt.supabase.co/storage/v1/object/public/molduras/Screenshot%202025-08-25%20182827.png',
         };
         
-        const { data: teamMemberData, error: teamMemberError } = await supabase.from('team_members').insert(newTeamMember).select().single();
+        const { error: teamMemberError } = await supabase.from('team_members').insert(newTeamMember).select().single();
 
         if (teamMemberError) {
             console.error("Error adding initial team member:", teamMemberError);
@@ -556,33 +608,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             throw new Error("Não foi possível criar o perfil do gestor.");
         }
 
-        // 4. Update client state
-        const addedCompany: Company = {
-            id: data.id,
-            name: data.name,
-            isActive: data.is_active,
-            logoUrl: data.logo_url,
-            cnpj: data.cnpj,
-            phone: data.phone,
-            email: data.email,
-            ownerEmail: data.owner_email,
-            instagram: data.instagram,
-            ownerName: data.owner_name,
-            ownerPhone: data.owner_phone,
-            monthlySalesGoal: data.monthly_sales_goal,
-            monthlyAdBudget: data.monthly_ad_budget,
-            marketingDriveUrl: data.marketing_drive_url,
-            visibleFields: data.visible_fields,
-            enabledFeatures: data.enabled_features,
-            pipeline_stages: data.pipeline_stages,
-            prospectAISettings: data.prospect_ai_settings,
-        };
-        
-        const addedTeamMember = mapTeamMemberFromDB(teamMemberData);
-        setTeamMembers(prev => [...prev, addedTeamMember]);
-        setCompanies(prev => [...prev, addedCompany]);
-        addAdminNotification(`Nova empresa cadastrada: ${addedCompany.name}.`, 'new_company');
-        await logActivity('COMPANY_PENDING', `Empresa ${addedCompany.name} cadastrada e aguardando aprovação.`, { companyId: addedCompany.id });
+        // Realtime will handle state updates.
+        addAdminNotification(`Nova empresa cadastrada: ${data.name}.`, 'new_company');
+        await logActivity('COMPANY_PENDING', `Empresa ${data.name} cadastrada e aguardando aprovação.`, { companyId: data.id });
     };
 
     const updateCompany = async (updatedCompany: Company) => {
@@ -638,28 +666,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return;
         }
         
-        const companyWithFinalLogo = { ...updatedCompany, logoUrl: finalLogoUrl };
-        setCompanies(prev => prev.map(c => c.id === id ? companyWithFinalLogo : c));
+        // Realtime handles UI update.
     };
 
     const deleteCompany = async (id: string) => {
         const companyToDelete = companies.find(c => c.id === id);
         if(!companyToDelete) return;
         
-        // Log the deletion action first to avoid foreign key violation.
         await logActivity('COMPANY_DELETED', `Empresa ${companyToDelete.name} e todos os seus dados foram removidos.`, { companyId: id });
         
         const { error } = await supabase.from('companies').delete().eq('id', id);
         if (error) {
             console.error("Error deleting company:", error);
-            // NOTE: A transaction would be ideal here to roll back the log if deletion fails.
-            // For now, we accept this potential inconsistency to fix the primary error.
             return;
         }
-
-        setCompanies(prev => prev.filter(c => c.id !== id));
-        setTeamMembers(prev => prev.filter(tm => tm.companyId !== id));
-        setVehicles(prev => prev.filter(v => v.companyId !== id));
+        // Realtime handles UI update.
     };
 
     const addVehicle = async (vehicleData: Omit<Vehicle, 'id'> & { maintenance: MaintenanceRecord[] }) => {
@@ -709,7 +730,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (vehicleError) return console.error("Error adding vehicle:", vehicleError);
 
         const newVehicleId = vehicleResult.id;
-        let newMaintenanceRecords: MaintenanceRecord[] = [];
 
         if (maintenance && maintenance.length > 0) {
             const maintenanceToInsert = maintenance.map(m => ({
@@ -717,22 +737,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 date: new Date().toISOString(), invoice_url: m.invoiceUrl,
             }));
 
-            const { data: maintenanceResult, error: maintenanceError } = await supabase
+            const { error: maintenanceError } = await supabase
                 .from('maintenance_records').insert(maintenanceToInsert).select();
             
             if (maintenanceError) console.error("Error adding maintenance:", maintenanceError);
-            else newMaintenanceRecords = (maintenanceResult || []).map((m: any) => ({
-                id: m.id, vehicleId: m.vehicle_id, description: m.description,
-                cost: m.cost, date: m.date, invoiceUrl: m.invoice_url,
-            }));
         }
         
-        const addedVehicle = mapVehicleFromDB(vehicleResult);
-        addedVehicle.maintenance = newMaintenanceRecords;
-        
-        setVehicles(prev => [...prev, addedVehicle]);
-        setMaintenanceRecords(prev => [...prev, ...newMaintenanceRecords]);
-        await logActivity('VEHICLE_CREATED', `Veículo ${addedVehicle.brand} ${addedVehicle.model} cadastrado.`, { companyId: addedVehicle.companyId });
+        await logActivity('VEHICLE_CREATED', `Veículo ${vehicle.brand} ${vehicle.model} cadastrado.`, { companyId: vehicle.companyId });
+        // Realtime will handle UI update
     };
 
     const updateVehicle = async (vehicleData: Vehicle & { maintenance: MaintenanceRecord[] }) => {
@@ -786,23 +798,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error: deleteError } = await supabase.from('maintenance_records').delete().eq('vehicle_id', id!);
         if (deleteError) console.error("Error deleting old maintenance:", deleteError);
         
-        let newMaintenanceRecords: MaintenanceRecord[] = [];
         if (maintenance && maintenance.length > 0) {
             const maintenanceToInsert = maintenance.map(m => ({
                 vehicle_id: id, description: m.description, cost: m.cost,
                 date: m.date, invoice_url: m.invoiceUrl,
             }));
-            const { data: maintResult, error: insertError } = await supabase.from('maintenance_records').insert(maintenanceToInsert).select();
+            const { error: insertError } = await supabase.from('maintenance_records').insert(maintenanceToInsert).select();
             if (insertError) console.error("Error inserting new maintenance:", insertError);
-            else newMaintenanceRecords = (maintResult || []).map((m: any) => ({
-                id: m.id, vehicleId: m.vehicle_id, description: m.description,
-                cost: m.cost, date: m.date, invoiceUrl: m.invoice_url
-            }));
         }
-
-        const updatedVehicle = { ...vehicleData, imageUrl: finalImageUrl, maintenance: newMaintenanceRecords };
-        setVehicles(prev => prev.map(v => v.id === id ? updatedVehicle : v));
-        setMaintenanceRecords(prev => [...prev.filter(m => m.vehicleId !== id), ...newMaintenanceRecords]);
+        // Realtime will handle UI update
     };
 
     const deleteVehicle = async (id: string) => {
@@ -812,9 +816,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error } = await supabase.from('vehicles').delete().eq('id', id);
         if (error) return console.error("Error deleting vehicle:", error);
 
-        setVehicles(prev => prev.filter(v => v.id !== id));
-        setMaintenanceRecords(prev => prev.filter(m => m.vehicleId !== id));
         await logActivity('VEHICLE_DELETED', `Veículo ${vehicleToDelete.brand} ${vehicleToDelete.model} removido.`, { companyId: vehicleToDelete.companyId });
+        // Realtime will handle UI update
     };
 
     const addTeamMember = async (teamMemberData: Omit<TeamMember, 'id' | 'companyId' | 'avatarUrl'>, companyId: string) => {
@@ -832,15 +835,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             is_hunter_mode_active: false,
         };
 
-        const { data, error } = await supabase.from('team_members').insert(newMemberData).select().single();
+        const { error } = await supabase.from('team_members').insert(newMemberData).select().single();
         if (error) {
             console.error("Error adding team member:", error);
             return;
         }
 
-        const addedMember = mapTeamMemberFromDB(data);
-        setTeamMembers(prev => [...prev, addedMember]);
-        await logActivity('USER_CREATED', `Novo membro da equipe adicionado: ${addedMember.name}.`, { companyId });
+        await logActivity('USER_CREATED', `Novo membro da equipe adicionado: ${teamMemberData.name}.`, { companyId });
+        // Realtime will handle UI update
     };
 
     const updateTeamMember = async (teamMember: TeamMember) => {
@@ -878,8 +880,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return;
         }
         
-        setTeamMembers(prev => prev.map(tm => tm.id === teamMember.id ? teamMemberWithFinalAvatar : tm));
         await logActivity('USER_UPDATED', `Dados do membro ${teamMember.name} atualizados.`, { companyId: teamMember.companyId, userId: teamMember.id });
+        // Realtime handles UI update
     };
 
     const deleteTeamMember = async (id: string) => {
@@ -896,8 +898,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error deleting team member:", error);
             return;
         }
-        setTeamMembers(prev => prev.filter(tm => tm.id !== id));
+
         await logActivity('USER_DELETED', `Membro ${memberToDelete.name} foi removido.`, { companyId: memberToDelete.companyId });
+        // Realtime handles UI update
     };
 
     const markVehicleAsSold = async (id: string) => {
@@ -908,14 +911,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error } = await supabase.from('vehicles').update({ status: 'sold', sale_date: saleDate }).eq('id', id);
         if (error) return console.error("Error marking as sold:", error);
 
-        setVehicles(prev => prev.map(v => v.id === id ? { ...v, status: 'sold', saleDate } : v));
         await logActivity('VEHICLE_SOLD', `Veículo ${vehicleToSell.brand} ${vehicleToSell.model} vendido.`, { companyId: vehicleToSell.companyId });
+        // Realtime handles UI update
     };
 
     const assignSalesperson = async (vehicleId: string, salespersonId: string | null) => {
         const { error } = await supabase.from('vehicles').update({ salesperson_id: salespersonId }).eq('id', vehicleId);
         if (error) return console.error("Error assigning salesperson:", error);
-        setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, salespersonId: salespersonId || undefined } : v));
+        // Realtime handles UI update
     };
 
     const toggleVehiclePriority = async (id: string) => {
@@ -924,7 +927,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newPriority = !vehicle.isPriority;
         const { error } = await supabase.from('vehicles').update({ is_priority: newPriority }).eq('id', id);
         if (error) return console.error("Error toggling priority:", error);
-        setVehicles(prev => prev.map(v => v.id === id ? { ...v, isPriority: newPriority } : v));
+        // Realtime handles UI update
     };
 
     const toggleVehicleAdStatus = async (id: string) => {
@@ -933,7 +936,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newAdStatus = !vehicle.isAdActive;
         const { error } = await supabase.from('vehicles').update({ is_ad_active: newAdStatus }).eq('id', id);
         if (error) return console.error("Error toggling ad status:", error);
-        setVehicles(prev => prev.map(v => v.id === id ? { ...v, isAdActive: newAdStatus } : v));
+        // Realtime handles UI update
     };
     
     const updateUserPassword = async (userId: string, currentPassword: string, newPassword: string) => {
@@ -1076,7 +1079,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             updatePayload.details = null;
         }
 
-        const { data: updatedLeadData, error } = await supabase
+        const { error } = await supabase
             .from('prospectai')
             .update(updatePayload)
             .eq('id', leadId)
@@ -1087,11 +1090,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error updating lead status:", error);
             return;
         }
-
-        const mappedUpdatedLead = mapProspectFromDB(updatedLeadData);
-        setProspectaiLeads(prev => prev.map(lead =>
-            lead.id === leadId ? mappedUpdatedLead : lead
-        ));
+        // Realtime handles UI update
     };
 
     const reassignProspectLead = async (leadId: string, newSalespersonId: string, originalSalespersonId: string) => {
@@ -1117,7 +1116,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             reassigned_at: new Date().toISOString(),
         };
 
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from('prospectai')
             .update({ 
                 salesperson_id: newSalespersonId,
@@ -1129,9 +1128,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .single();
 
         if (error) { console.error("Error reassigning lead:", error); return; }
-
-        const mappedUpdatedLead = mapProspectFromDB(data);
-        setProspectaiLeads(prev => prev.map(lead => lead.id === leadId ? mappedUpdatedLead : lead));
+        // Realtime handles UI update
     };
 
     const addProspectLeadFeedback = async (leadId: string, feedbackText: string, images: string[]) => {
@@ -1173,7 +1170,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 last_feedback_at: new Date().toISOString(),
             };
 
-            const { data: updatedLeadData, error: updateError } = await supabase
+            const { error: updateError } = await supabase
                 .from('prospectai')
                 .update(updatePayload)
                 .eq('id', leadId)
@@ -1181,10 +1178,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 .single();
 
             if (updateError) throw updateError;
-            
-            const mappedUpdatedLead = mapProspectFromDB(updatedLeadData);
-            setProspectaiLeads(prev => prev.map(l => l.id === leadId ? mappedUpdatedLead : l));
-
+            // Realtime handles UI update
         } catch (error) {
             console.error("Failed to add feedback:", error);
         }
@@ -1226,11 +1220,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             is_active: true,
         };
 
-        const { data, error } = await supabase.from('grupos_empresariais').insert(newGrupo).select().single();
+        const { error } = await supabase.from('grupos_empresariais').insert(newGrupo).select().single();
         if (error) return console.error("Error adding grupo:", error);
-
-        const addedGrupo = mapGrupoFromDB(data);
-        setGruposEmpresariais(prev => [...prev, addedGrupo]);
+        // Realtime handles UI update
     };
 
     const updateGrupoEmpresarial = async (grupo: Omit<GrupoEmpresarial, 'companyIds'>) => {
@@ -1269,15 +1261,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const { error } = await supabase.from('grupos_empresariais').update(updateData).eq('id', grupo.id);
         if (error) return console.error("Error updating grupo:", error);
-
-        const updatedGrupoWithFinalUrls = { ...gruposEmpresariais.find(g => g.id === grupo.id)!, ...grupo, bannerUrl: finalBannerUrl, responsiblePhotoUrl: finalPhotoUrl };
-        setGruposEmpresariais(prev => prev.map(g => g.id === grupo.id ? updatedGrupoWithFinalUrls : g));
+        // Realtime handles UI update
     };
 
     const updateGrupoCompanies = async (groupId: string, companyIds: string[]) => {
         const { error } = await supabase.from('grupos_empresariais').update({ company_ids: companyIds }).eq('id', groupId);
         if (error) return console.error("Error updating grupo companies:", error);
-        setGruposEmpresariais(prev => prev.map(g => g.id === groupId ? { ...g, companyIds } : g));
+        // Realtime handles UI update
     };
 
     const updateGrupoEmpresarialStatus = async (groupId: string, isActive: boolean) => {
@@ -1286,7 +1276,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error updating grupo status:", error);
             return;
         }
-        setGruposEmpresariais(prev => prev.map(g => g.id === groupId ? { ...g, isActive } : g));
+        // Realtime handles UI update
     };
 
     const updateGrupoUserProfile = async (groupId: string, data: { bannerUrl: string, responsiblePhotoUrl: string }): Promise<GrupoEmpresarial | null> => {
@@ -1323,9 +1313,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return null;
         }
 
-        const updatedGrupo = mapGrupoFromDB(updatedData);
-        setGruposEmpresariais(prev => prev.map(g => g.id === groupId ? updatedGrupo : g));
-        return updatedGrupo;
+        return mapGrupoFromDB(updatedData);
+        // Realtime handles UI update
     };
 
     const updateGrupoUserPassword = async (groupId: string, currentPassword: string, newPassword: string) => {
@@ -1378,7 +1367,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         const newStages = [...company.pipeline_stages, newStage].sort((a, b) => a.stageOrder - b.stageOrder);
         
-        const { data: updatedCompanyData, error } = await supabase
+        const { error } = await supabase
             .from('companies')
             .update({ pipeline_stages: newStages })
             .eq('id', companyId)
@@ -1389,12 +1378,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error adding pipeline stage:", error);
             return;
         }
-
-        setCompanies(prev => prev.map(c => 
-            c.id === companyId 
-            ? { ...c, pipeline_stages: updatedCompanyData.pipeline_stages } 
-            : c
-        ));
+        // Realtime handles UI update
     };
 
     const updatePipelineStage = async (companyId: string, stage: Partial<PipelineStage> & { id: string }) => {
@@ -1405,7 +1389,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             s.id === stage.id ? { ...s, ...stage } : s
         );
 
-        const { data: updatedCompanyData, error } = await supabase
+        const { error } = await supabase
             .from('companies')
             .update({ pipeline_stages: newStages })
             .eq('id', companyId)
@@ -1416,12 +1400,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error updating pipeline stage:", error);
             return;
         }
-        
-        setCompanies(prev => prev.map(c => 
-            c.id === companyId 
-            ? { ...c, pipeline_stages: updatedCompanyData.pipeline_stages } 
-            : c
-        ));
+        // Realtime handles UI update
     };
 
     const deletePipelineStage = async (companyId: string, stageId: string): Promise<{ success: boolean; message?: string }> => {
@@ -1452,23 +1431,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error deleting pipeline stage:", error);
             return { success: false, message: 'Erro ao excluir a etapa do banco de dados.' };
         }
-
-        setCompanies(prev => prev.map(c => 
-            c.id === companyId 
-            ? { ...c, pipeline_stages: newStages } 
-            : c
-        ));
+        
+        // Realtime handles UI update
         return { success: true };
     };
 
     const uploadHunterLeads = async (leads: any[]) => {
-      const { data, error } = await supabase.from('hunter_leads').insert(leads).select();
+      const { error } = await supabase.from('hunter_leads').insert(leads).select();
       if (error) {
         console.error("Error uploading hunter leads:", error);
         throw error;
       }
-      const newLeads = data.map(mapHunterLeadFromDB);
-      setHunterLeads(prev => [...prev, ...newLeads]);
+      // Realtime handles UI update
     };
 
     const addHunterLead = async (leadData: { name: string; phone: string; companyId: string; salespersonId: string; }) => {
@@ -1514,13 +1488,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             last_activity: now,
             feedback: [],
         };
-        const { data, error } = await supabase.from('hunter_leads').insert(newLeadData).select().single();
+        const { error } = await supabase.from('hunter_leads').insert(newLeadData).select().single();
         if (error) {
             console.error("Error adding hunter lead:", error);
             throw error;
         }
-        const addedLead = mapHunterLeadFromDB(data);
-        setHunterLeads(prev => [addedLead, ...prev]);
+        // Realtime handles UI update
     };
 
     const updateHunterLead = async (leadId: string, updates: any): Promise<HunterLead> => {
@@ -1529,9 +1502,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error updating hunter lead:", error);
         throw error;
       }
-      const updatedLead = mapHunterLeadFromDB(data);
-      setHunterLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
-      return updatedLead;
+      // Realtime will handle the main UI update, but we return the lead for immediate feedback if needed.
+      return mapHunterLeadFromDB(data);
     };
     
     const addHunterLeadAction = async (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => {
@@ -1583,11 +1555,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error updating monitor settings:", error);
             throw new Error("Falha ao atualizar as configurações. Verifique as permissões do banco de dados.");
         }
-        setMonitorSettings(prev => prev ? { ...prev, ...settings } : null);
+        // Realtime handles UI update
     };
 
     const addMonitorChatMessage = async (messageData: Omit<MonitorChatMessage, 'id' | 'created_at'>) => {
-        const { data: newMessage, error } = await supabase
+        const { error } = await supabase
             .from('monitor_chat_history')
             .insert(messageData)
             .select()
@@ -1597,10 +1569,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error adding chat message:", error);
             return;
         }
-
-        if (newMessage) {
-            setMonitorChatHistory(prev => [...prev, newMessage]);
-        }
+        // Realtime handles UI update
     };
 
     const value: DataContextType = {
