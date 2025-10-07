@@ -38,12 +38,10 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalSales = vehicles.length;
-    // FIX: Added fallbacks for potentially null values to prevent arithmetic errors.
+    // FIX: Added fallbacks for potentially null or undefined properties to prevent runtime errors with arithmetic operations.
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
-        // FIX: Added fallbacks for potentially null values to prevent arithmetic errors.
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        // FIX: Added fallbacks for potentially null values and optional properties.
         const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);

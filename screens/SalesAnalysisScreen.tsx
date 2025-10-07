@@ -72,13 +72,10 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalSales = vehicles.length;
-    // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
+    // FIX: Added fallbacks for potentially null or undefined properties to prevent runtime errors with arithmetic operations.
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
-        // FIX: Added fallbacks for potentially null `announcedPrice` and `discount` to prevent arithmetic errors.
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        // FIX: Added fallback for potentially null `purchasePrice` to prevent arithmetic errors.
-        // FIX: The `maintenance` property on a vehicle is optional. Added a fallback to an empty array `[]` to prevent calling `.reduce()` on `undefined`.
         const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0); 
         return acc + (salePrice - totalCosts);
     }, 0);
@@ -304,7 +301,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             return acc;
         }, {} as { [model: string]: { count: number, totalProfit: number } });
 
-        const statsArray = Object.entries(modelStats).map(([model, stats]) => ({ model, count: (stats as any).count, totalProfit: (stats as any).totalProfit }));
+        const statsArray = Object.entries(modelStats).map(([model, stats]) => ({ model, ...stats }));
         
         if (statsArray.length === 0) {
             return defaultResult;

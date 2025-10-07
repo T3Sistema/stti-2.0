@@ -70,3 +70,25 @@ export const formatTimeUntil = (dateString: string): string => {
     
     return `em ${diffDays} dias`;
 };
+
+export const formatDuration = (ms: number): string => {
+    if (ms < 0 || isNaN(ms)) return 'N/A';
+    if (ms < 1000) return 'Imediato'; // Less than a second
+
+    const seconds = Math.floor((ms / 1000) % 60);
+    const minutes = Math.floor((ms / (1000 * 60)) % 60);
+    const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    // Only show seconds if duration is less than a minute
+    if (seconds > 0 && days === 0 && hours === 0 && minutes === 0) parts.push(`${seconds}s`);
+
+    if (parts.length === 0) return 'Imediato';
+    
+    // Show up to 2 units for readability, e.g., "1d 5h" instead of "1d 5h 30m"
+    return parts.slice(0, 2).join(' ');
+};

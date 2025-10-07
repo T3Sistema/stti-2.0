@@ -11,22 +11,30 @@ import { SwitchHorizontalIcon } from '../components/icons/SwitchHorizontalIcon';
 import { CheckCircleIcon } from '../components/icons/CheckCircleIcon';
 import { XIcon } from '../components/icons/XIcon';
 import Modal from '../components/Modal';
+import { formatDuration } from '../utils/dateUtils';
+import { ClockIcon } from '../components/icons/ClockIcon';
 
 
 // --- Helper Functions ---
-const formatDuration = (ms: number): string => {
-    if (ms < 0 || isNaN(ms)) return 'N/A';
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d ${hours % 24}h`;
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    if (seconds > 0) return `${seconds}s`;
-    return 'Imediato';
+const generateLeadEvents = (lead: ProspectAILead, allSalespeople: TeamMember[]) => {
+    const events: any[] = [];
+    events.push({ type: 'creation', date: new Date(lead.createdAt), text: 'Lead recebido', icon: <PlusIcon className="w-4 h-4 text-blue-400" /> });
+    if (lead.prospected_at) events.push({ type: 'prospecting', date: new Date(lead.prospected_at), text: 'Prospecção iniciada', icon: <BullseyeIcon className="w-4 h-4 text-yellow-400" /> });
+    if (lead.feedback) lead.feedback.forEach(feedbackItem => events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> }));
+    if (lead.details?.reassigned_at) {
+        const from = allSalespeople.find(s => s.id === lead.details.reassigned_from)?.name || 'Desconhecido';
+        const to = allSalespeople.find(s => s.id === lead.details.reassigned_to)?.name || 'Desconhecido';
+        events.push({ type: 'reassignment', date: new Date(lead.details.reassigned_at), text: `Remanejado de ${from} para ${to}`, icon: <SwitchHorizontalIcon className="w-4 h-4 text-purple-400" /> });
+    }
+    if (lead.outcome && lead.last_feedback_at) {
+        const outcomeText = lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido';
+        const icon = lead.outcome === 'convertido' ? <CheckCircleIcon className="w-4 h-4 text-green-400" /> : <XIcon className="w-4 h-4 text-red-400" />;
+        events.push({ type: 'finalization', date: new Date(lead.last_feedback_at), text: `Lead finalizado - ${outcomeText}`, icon: icon });
+    }
+    events.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return events;
 };
+
 
 const calculatePerformanceMetrics = (leads: ProspectAILead[], companyPipeline: PipelineStage[], allSalespeople: TeamMember[]) => {
     const finalizadosStage = companyPipeline.find(s => s.name === 'Finalizados');
@@ -98,24 +106,6 @@ interface PerformanceScreenProps {
 
 type Period = 'all' | 'custom';
 
-const generateLeadEvents = (lead: ProspectAILead, allSalespeople: TeamMember[]) => {
-    const events: any[] = [];
-    events.push({ type: 'creation', date: new Date(lead.createdAt), text: 'Lead recebido', icon: <PlusIcon className="w-4 h-4 text-blue-400" /> });
-    if (lead.prospected_at) events.push({ type: 'prospecting', date: new Date(lead.prospected_at), text: 'Prospecção iniciada', icon: <BullseyeIcon className="w-4 h-4 text-yellow-400" /> });
-    if (lead.feedback) lead.feedback.forEach(feedbackItem => events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> }));
-    if (lead.details?.reassigned_at) {
-        const from = allSalespeople.find(s => s.id === lead.details.reassigned_from)?.name || 'Desconhecido';
-        const to = allSalespeople.find(s => s.id === lead.details.reassigned_to)?.name || 'Desconhecido';
-        events.push({ type: 'reassignment', date: new Date(lead.details.reassigned_at), text: `Remanejado de ${from} para ${to}`, icon: <SwitchHorizontalIcon className="w-4 h-4 text-purple-400" /> });
-    }
-    if (lead.outcome && lead.last_feedback_at) {
-        const outcomeText = lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido';
-        const icon = lead.outcome === 'convertido' ? <CheckCircleIcon className="w-4 h-4 text-green-400" /> : <XIcon className="w-4 h-4 text-red-400" />;
-        events.push({ type: 'finalization', date: new Date(lead.last_feedback_at), text: `Lead finalizado - ${outcomeText}`, icon: icon });
-    }
-    events.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return events;
-};
 
 const LeadHistoryTimeline: React.FC<{ lead: ProspectAILead, allSalespeople: TeamMember[], onImageClick: (url: string) => void }> = ({ lead, allSalespeople, onImageClick }) => {
     const events = useMemo(() => generateLeadEvents(lead, allSalespeople), [lead, allSalespeople]);
@@ -126,26 +116,42 @@ const LeadHistoryTimeline: React.FC<{ lead: ProspectAILead, allSalespeople: Team
             <div className="max-h-[60vh] overflow-y-auto pr-2">
                 <div className="relative pl-5 py-2">
                     <div className="absolute left-2.5 top-0 h-full w-0.5 bg-dark-border"></div>
-                    {events.map((event, eventIndex) => (
-                        <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
-                            <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
-                                {event.icon}
+                    {events.map((event, eventIndex) => {
+                         let durationString: string | null = null;
+                         if (eventIndex > 0) {
+                             const prevEvent = events[eventIndex - 1];
+                             const durationMs = event.date.getTime() - prevEvent.date.getTime();
+                             if (durationMs >= 1000) {
+                                durationString = formatDuration(durationMs);
+                             }
+                         }
+                        return (
+                            <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
+                                <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
+                                    {event.icon}
+                                </div>
+                                <div className="pl-4">
+                                    <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                    <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
+                                    {durationString && (
+                                        <p className="text-xs font-semibold text-amber-400 mt-1.5 flex items-center gap-1.5">
+                                            <ClockIcon className="w-3.5 h-3.5" />
+                                            <span>{`Após ${durationString}`}</span>
+                                        </p>
+                                    )}
+                                    {event.type === 'feedback' && event.images && event.images.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                            {event.images.map((img: string, i: number) => (
+                                                <button key={i} onClick={() => onImageClick(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
+                                                    <img src={img} alt="feedback" className="w-full h-full object-cover"/>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <div className="pl-4">
-                                <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                                <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
-                                {event.type === 'feedback' && event.images && event.images.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                        {event.images.map((img: string, i: number) => (
-                                            <button key={i} onClick={() => onImageClick(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
-                                                <img src={img} alt="feedback" className="w-full h-full object-cover"/>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         </div>
@@ -182,16 +188,6 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
     const metrics = useMemo(() => calculatePerformanceMetrics(filteredLeads, companyPipeline, allSalespeople), [filteredLeads, companyPipeline, allSalespeople]);
     const finalizedCount = metrics.totalConverted + metrics.totalNotConverted;
 
-    const recentLeadsForTimeline = useMemo(() => {
-        const leadMap = new Map<string, ProspectAILead>();
-        for (const fb of metrics.allFeedbacks) {
-            if (!leadMap.has(fb.lead.id)) {
-                leadMap.set(fb.lead.id, fb.lead);
-            }
-        }
-        return Array.from(leadMap.values());
-    }, [metrics.allFeedbacks]);
-
     const barChartData = useMemo(() => {
         const stageCounts: Record<string, number> = {};
         const stageOrderMap = new Map<string, number>();
@@ -214,7 +210,6 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
         for (const lead of filteredLeads) {
             if (lead.details?.reassigned_from === user.id) {
                 const remanejadoStage = companyPipeline.find(s => s.name === 'Remanejados');
-                // FIX: Corrected variable from 'stage' to 'remanejadoStage' to use variable in scope, and cast to 'any' to resolve index signature error.
                 if (remanejadoStage && stageCounts.hasOwnProperty(remanejadoStage.name)) {
                     (stageCounts as any)[remanejadoStage.name]++;
                 }
@@ -258,7 +253,6 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
         const maxTime = Math.max(...timestamps);
         const timeRange = maxTime - minTime;
         
-        // Use hourly grouping for ranges up to 7 days
         const useHourGrouping = timeRange <= 7 * 24 * 60 * 60 * 1000;
 
         const logCounts = filteredLeads.reduce((acc, log) => {
@@ -349,7 +343,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                     <button onClick={onBack} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-text mb-2">
                         &larr; Voltar ao Pipeline
                     </button>
-                    <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Análise de Desempenho</h1>
+                    <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Análise de Desempenho (Farm)</h1>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                      <div className="bg-dark-card p-1 rounded-lg border border-dark-border flex flex-wrap items-center gap-1">
@@ -369,13 +363,15 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 </div>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 <Kpi title="Total de Leads" value={metrics.totalLeads.toString()} />
-                <Kpi title="Leads Finalizados" value={finalizedCount.toString()} />
                 <Kpi title="Leads Convertidos" value={metrics.totalConverted.toString()} />
                 <Kpi title="Taxa de Sucesso (Finalizados)" value={`${metrics.conversionRate.toFixed(1)}%`} />
+                <Kpi title="1º Contato (Média)" value={formatDuration(metrics.avgResponseTime)} />
+                <Kpi title="Fechamento (Média)" value={formatDuration(metrics.avgClosingTime)} />
+                <Kpi title="Leads Finalizados" value={finalizedCount.toString()} />
             </div>
-
+            
             <div className="grid grid-cols-1 gap-6 mb-6">
                 <Card className="p-4">
                     <h2 className="text-xl font-bold text-dark-text mb-4">Pipeline de Leads</h2>
@@ -390,29 +386,42 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 <Card className="p-4">
                      <h2 className="text-xl font-bold text-dark-text mb-4">Feedbacks Recentes</h2>
                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                        {recentLeadsForTimeline.length > 0 ? (
-                             recentLeadsForTimeline.map((lead) => {
-                                const events = generateLeadEvents(lead, allSalespeople);
-                                const lastEvent = events.length > 0 ? events[events.length - 1] : null;
-                                const dateToShow = lastEvent ? lastEvent.date : new Date(lead.createdAt);
-                                const textToShow = lastEvent ? lastEvent.text : 'Lead Criado';
-                                return (
-                                    <div key={lead.id}
-                                         onClick={() => setHistoryModalLead(lead)}
-                                         className="p-3 bg-dark-background/50 rounded-md border border-dark-border/50 cursor-pointer hover:border-dark-primary/50 transition-colors">
-                                        <div className="flex justify-between items-start gap-3">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs text-dark-secondary">Lead: <span className="font-semibold text-dark-text">{lead.leadName}</span></p>
-                                                <p className="text-sm text-dark-text mt-1 truncate" title={textToShow}>{textToShow}</p>
-                                            </div>
-                                            <p className="text-xs text-dark-secondary flex-shrink-0">
-                                                {new Date(dateToShow).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', year:'2-digit', hour: '2-digit', minute: '2-digit'})}
+                        {metrics.allFeedbacks.slice(0, 10).map((fb, index) => {
+                            const events = generateLeadEvents(fb.lead, allSalespeople);
+                            const eventIndex = events.findIndex(e => e.type === 'feedback' && e.date.toISOString() === fb.createdAt);
+                            let durationString: string | null = null;
+                            if (eventIndex > 0) {
+                                const prevEvent = events[eventIndex - 1];
+                                const durationMs = new Date(fb.createdAt).getTime() - prevEvent.date.getTime();
+                                if (durationMs >= 1000) {
+                                    durationString = formatDuration(durationMs);
+                                }
+                            }
+
+                            return (
+                                <div key={index}
+                                        onClick={() => setHistoryModalLead(fb.lead)}
+                                        className="p-3 bg-dark-background/50 rounded-md border border-dark-border/50 cursor-pointer hover:border-dark-primary/50 transition-colors">
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-dark-secondary">Lead: <span className="font-semibold text-dark-text">{fb.leadName}</span></p>
+                                            <p className="text-sm text-dark-text mt-1 truncate" title={fb.text}>{fb.text}</p>
+                                        </div>
+                                        <div className="flex-shrink-0 text-right">
+                                            <p className="text-xs text-dark-secondary">
+                                                {new Date(fb.createdAt).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})}
                                             </p>
+                                            {durationString && (
+                                                <p className="text-xs font-semibold text-amber-400 mt-1 text-right">
+                                                    {`Após ${durationString}`}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
-                                );
-                            })
-                         ) : <p className="text-center text-dark-secondary py-8">Nenhum feedback no período.</p>}
+                                </div>
+                            );
+                        })}
+                        {metrics.allFeedbacks.length === 0 && <p className="text-center text-dark-secondary py-8">Nenhum feedback no período.</p>}
                      </div>
                  </Card>
             </div>

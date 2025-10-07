@@ -22,6 +22,7 @@ import { ClockIcon } from './icons/ClockIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { formatDuration } from '../utils/dateUtils';
 
 interface LeadCardProps {
     lead: ProspectAILead;
@@ -562,26 +563,42 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                                 return (
                                     <div className="relative pl-5 py-2">
                                         <div className="absolute left-2.5 top-0 h-full w-0.5 bg-dark-border"></div>
-                                        {events.map((event, eventIndex) => (
-                                            <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
-                                                <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
-                                                    {event.icon}
+                                        {events.map((event, eventIndex) => {
+                                            let durationString: string | null = null;
+                                            if (eventIndex > 0) {
+                                                const prevEvent = events[eventIndex - 1];
+                                                const durationMs = event.date.getTime() - prevEvent.date.getTime();
+                                                if (durationMs >= 1000) { // Only show for durations of 1s or more
+                                                   durationString = formatDuration(durationMs);
+                                                }
+                                            }
+                                            return (
+                                                <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
+                                                    <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
+                                                        {event.icon}
+                                                    </div>
+                                                    <div className="pl-4">
+                                                        <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                                        <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
+                                                        {durationString && (
+                                                            <p className="text-xs font-semibold text-amber-400 mt-1.5 flex items-center gap-1.5">
+                                                                <ClockIcon className="w-3.5 h-3.5" />
+                                                                <span>{`Após ${durationString}`}</span>
+                                                            </p>
+                                                        )}
+                                                        {event.type === 'feedback' && event.images && event.images.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                                {event.images.map((img: string, i: number) => (
+                                                                    <button key={i} onClick={() => setExpandedImageUrl(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
+                                                                        <img src={img} alt="feedback" className="w-full h-full object-cover"/>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="pl-4">
-                                                    <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                                                    <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
-                                                    {event.type === 'feedback' && event.images && event.images.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-2">
-                                                            {event.images.map((img: string, i: number) => (
-                                                                <button key={i} onClick={() => setExpandedImageUrl(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
-                                                                    <img src={img} alt="feedback" className="w-full h-full object-cover"/>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 );
                             })()}
