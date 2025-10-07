@@ -1079,7 +1079,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             updatePayload.details = null;
         }
 
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('prospectai')
             .update(updatePayload)
             .eq('id', leadId)
@@ -1090,7 +1090,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Error updating lead status:", error);
             return;
         }
-        // Realtime handles UI update
+
+        if (data) {
+            const updatedLead = mapProspectFromDB(data);
+            setProspectaiLeads(prevLeads =>
+                prevLeads.map(lead => (lead.id === updatedLead.id ? updatedLead : lead))
+            );
+        }
     };
 
     const reassignProspectLead = async (leadId: string, newSalespersonId: string, originalSalespersonId: string) => {
@@ -1502,8 +1508,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error updating hunter lead:", error);
         throw error;
       }
-      // Realtime will handle the main UI update, but we return the lead for immediate feedback if needed.
-      return mapHunterLeadFromDB(data);
+      
+      const updatedLead = mapHunterLeadFromDB(data);
+      setHunterLeads(prevLeads =>
+        prevLeads.map(lead => (lead.id === updatedLead.id ? updatedLead : lead))
+      );
+
+      return updatedLead;
     };
     
     const addHunterLeadAction = async (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => {
