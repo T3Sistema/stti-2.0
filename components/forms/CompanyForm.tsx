@@ -220,23 +220,25 @@ const CompanyForm: React.FC<CompanyFormProps> = ({ initialData, onClose }) => {
                 </fieldset>
             )}
 
-            <fieldset className="border border-dark-border p-4 rounded-lg mt-4">
-                <legend className="px-2 font-semibold text-dark-text">Visibilidade dos Detalhes do Veículo</legend>
-                <p className="text-sm text-dark-secondary mb-4">Selecione quais campos de detalhes adicionais serão visíveis para vendedores e gestores de tráfego.</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-2">
-                    {vehicleDetailFields.map(field => (
-                        <label key={field.key} className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-dark-border/50">
-                            <input 
-                                type="checkbox"
-                                checked={formData.visibleFields?.includes(field.key)}
-                                onChange={() => handleVisibilityChange(field.key)}
-                                className="h-4 w-4 rounded bg-dark-background border-dark-border text-dark-primary focus:ring-dark-primary focus:ring-offset-dark-card"
-                            />
-                            <span className="text-sm font-medium text-dark-secondary">{field.label}</span>
-                        </label>
-                    ))}
-                </div>
-            </fieldset>
+            {(isAdmin || formData.enabledFeatures?.includes('estoque_inteligente')) && (
+                <fieldset className="border border-dark-border p-4 rounded-lg mt-4">
+                    <legend className="px-2 font-semibold text-dark-text">Visibilidade dos Detalhes do Veículo</legend>
+                    <p className="text-sm text-dark-secondary mb-4">Selecione quais campos de detalhes adicionais serão visíveis para vendedores e gestores de tráfego.</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-2">
+                        {vehicleDetailFields.map(field => (
+                            <label key={field.key} className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-dark-border/50">
+                                <input 
+                                    type="checkbox"
+                                    checked={formData.visibleFields?.includes(field.key)}
+                                    onChange={() => handleVisibilityChange(field.key)}
+                                    className="h-4 w-4 rounded bg-dark-background border-dark-border text-dark-primary focus:ring-dark-primary focus:ring-offset-dark-card"
+                                />
+                                <span className="text-sm font-medium text-dark-secondary">{field.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                </fieldset>
+            )}
             
             <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={onClose} className="px-4 py-2 rounded-md bg-dark-border/50 hover:bg-dark-border transition-colors">Cancelar</button>
