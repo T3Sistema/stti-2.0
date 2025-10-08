@@ -379,7 +379,7 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                 </Card>
             </div>
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="p-4">
+                <Card className="p-4 overflow-hidden">
                     <h2 className="text-xl font-bold text-dark-text mb-4">Leads ao Longo do Tempo</h2>
                     <ReactECharts option={{ ...chartOptions.base, ...chartOptions.leadsOverTime }} style={{ height: '300px' }} />
                 </Card>

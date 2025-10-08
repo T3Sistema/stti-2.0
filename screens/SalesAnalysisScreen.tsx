@@ -72,7 +72,7 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalSales = vehicles.length;
-    // FIX: Added fallbacks for potentially null or undefined properties to prevent runtime errors with arithmetic operations.
+    // Fix: Added fallbacks for potentially null or undefined properties to prevent runtime errors with arithmetic operations.
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
@@ -286,7 +286,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
         }
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
-            // FIX: Added fallbacks for potentially null values to prevent arithmetic errors.
+            // Fix: Added fallbacks for potentially null values to prevent arithmetic errors.
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
@@ -301,7 +301,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             return acc;
         }, {} as { [model: string]: { count: number, totalProfit: number } });
 
-        // FIX: Cast `stats` to its specific type to preserve properties after spreading.
+        // Fix: Cast `stats` to its specific type to preserve properties after spreading.
         const statsArray = Object.entries(modelStats).map(([model, stats]) => ({ model, ...(stats as { count: number; totalProfit: number; }) }));
         
         if (statsArray.length === 0) {
